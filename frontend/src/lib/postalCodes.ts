@@ -139,7 +139,7 @@ export const hungarianPostalCodes: Record<string, string> = {
   '2000': 'Szentendre', '2001': 'Szentendre', '2011': 'Budakalász',
   '2013': 'Pomáz', '2016': 'Leányfalu', '2017': 'Pócsmegyer',
   '2023': 'Dunabogdány', '2025': 'Visegrád', '2026': 'Visegrád',
-  '2027': 'Dömös', '2028': 'Pilismarót', '2030': 'Érd',
+  '2027': 'Dömös', '2028': 'Pilismarót',
   '2040': 'Budaörs', '2045': 'Törökbálint', '2049': 'Diósd',
   '2051': 'Biatorbágy', '2053': 'Herceghalom', '2060': 'Bicske',
   '2081': 'Piliscsaba', '2083': 'Solymár', '2084': 'Pilisvörösvár',

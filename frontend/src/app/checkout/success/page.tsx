@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/supabase";
 
@@ -21,7 +21,7 @@ const BANK_DETAILS = {
   swift: "OTPVHUHB",
 };
 
-export default function CheckoutSuccessPage() {
+function CheckoutSuccessContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("orderId");
   const payment = searchParams.get("payment") ?? "card";
@@ -179,5 +179,23 @@ export default function CheckoutSuccessPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function CheckoutSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#fdf8f8] px-6 py-12 text-slate-900">
+          <div className="mx-auto max-w-3xl space-y-4">
+            <div className="skeleton mx-auto h-24 w-24 rounded-full" />
+            <div className="skeleton mx-auto h-8 w-64 rounded-xl" />
+            <div className="skeleton h-48 w-full rounded-2xl" />
+          </div>
+        </div>
+      }
+    >
+      <CheckoutSuccessContent />
+    </Suspense>
   );
 }
