@@ -9,6 +9,10 @@ import type { Database } from "@/types/supabase";
 type Order = Database["public"]["Tables"]["orders"]["Row"];
 type OrderItem = Database["public"]["Tables"]["order_items"]["Row"];
 
+function getOrderExtra(order: Order | null): { shipping_email?: string; payment_method?: string | null } {
+  return (order ?? {}) as { shipping_email?: string; payment_method?: string | null };
+}
+
 const statusConfig: Record<string, { label: string; color: string }> = {
   pending:    { label: "Függőben",      color: "bg-amber-50 text-amber-700 border-amber-200" },
   processing: { label: "Feldolgozás",   color: "bg-blue-50 text-blue-700 border-blue-200" },
@@ -86,6 +90,7 @@ export default function OrderDetailsPage() {
   }, [orderId]);
 
   const st = order ? (statusConfig[order.status] ?? { label: order.status, color: "bg-slate-100 text-slate-600 border-slate-200" }) : null;
+  const orderExtra = getOrderExtra(order);
 
   return (
     <div className="min-h-screen bg-[#fdf8f8] text-slate-900">
@@ -225,7 +230,7 @@ export default function OrderDetailsPage() {
                   <div className="space-y-3 text-sm">
                     {[
                       { label: "Név", value: order.shipping_name },
-                      { label: "E-mail", value: order.shipping_email },
+                      { label: "E-mail", value: orderExtra.shipping_email },
                       { label: "Telefon", value: order.shipping_phone },
                       { label: "Cím", value: order.shipping_address },
                     ].map(({ label, value }) => value ? (
@@ -244,7 +249,7 @@ export default function OrderDetailsPage() {
                 </div>
 
                 {/* Transfer info */}
-                {(order.payment_method === "transfer" || paymentParam === "transfer") ? (
+                {(orderExtra.payment_method === "transfer" || paymentParam === "transfer") ? (
                   <div className="rounded-2xl border border-brand-100 bg-brand-50/60 p-5 text-sm">
                     <p className="mb-2 font-bold text-slate-900">Banki átutalás adatok</p>
                     <p className="text-red-950/70">Kedvezményezett: <span className="font-semibold text-slate-900">Sunmed Kft.</span></p>
