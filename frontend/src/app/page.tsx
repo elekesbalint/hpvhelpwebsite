@@ -99,10 +99,31 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#fdf8f8] text-slate-900">
       {/* Info sáv */}
-      <div className="bg-brand-900 py-2 text-center text-xs text-red-100">
-        <span className="mx-4">📍 Budapest, Hungary</span>
-        <span className="mx-4">✉ info@hpvhelp.hu</span>
-        <span className="mx-4">⏰ H–P: 9:00–17:00</span>
+      <div className="bg-brand-900 text-red-50">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-center gap-x-6 gap-y-2 px-6 py-2 text-xs font-medium">
+          <span className="inline-flex items-center gap-1.5">
+            <svg className="h-3.5 w-3.5 text-red-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Budapest, Hungary
+          </span>
+          <span className="hidden h-3.5 w-px bg-red-200/40 sm:block" />
+          <span className="inline-flex items-center gap-1.5">
+            <svg className="h-3.5 w-3.5 text-red-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            <a href="mailto:info@hpvhelp.hu" className="transition hover:text-white">info@hpvhelp.hu</a>
+          </span>
+          <span className="hidden h-3.5 w-px bg-red-200/40 sm:block" />
+          <span className="inline-flex items-center gap-1.5">
+            <svg className="h-3.5 w-3.5 text-red-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="9" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" />
+            </svg>
+            H-P: 9:00-17:00
+          </span>
+        </div>
       </div>
 
       {/* Header */}
