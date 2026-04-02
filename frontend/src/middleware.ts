@@ -25,12 +25,13 @@ export async function middleware(request: NextRequest) {
   const previewParam = searchParams.get(MAINTENANCE_PREVIEW_QUERY);
   if (previewParam !== null) {
     const redirectUrl = new URL(pathname, request.url);
-    const maintenanceBypassKey = process.env.MAINTENANCE_BYPASS_KEY;
+    const maintenanceBypassKey = process.env.MAINTENANCE_BYPASS_KEY?.trim();
+    const providedKey = searchParams.get(MAINTENANCE_KEY_QUERY)?.trim();
 
     if (
       previewParam === "1" &&
       maintenanceBypassKey &&
-      searchParams.get(MAINTENANCE_KEY_QUERY) === maintenanceBypassKey
+      providedKey === maintenanceBypassKey
     ) {
       const withPreview = NextResponse.redirect(redirectUrl);
       withPreview.cookies.set(MAINTENANCE_PREVIEW_COOKIE, "1", {
