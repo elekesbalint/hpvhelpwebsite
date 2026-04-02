@@ -31,6 +31,7 @@ async function sendOrderEmails(params: {
   const adminTemplateId = process.env.NEXT_PUBLIC_EMAILJS_ADMIN_TEMPLATE_ID;
   const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
   const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://hpvhelp.hu").replace(/\/+$/, "");
 
   if (!serviceId || !publicKey || serviceId === "service_xxxxxxx") return;
 
@@ -95,6 +96,10 @@ async function sendOrderEmails(params: {
     shipping_phone: params.shippingPhone,
     payment_info: paymentInfoMap[params.paymentMethod] ?? "",
     next_steps: nextStepsMap[params.paymentMethod] ?? "",
+    site_url: siteUrl,
+    order_link: `${siteUrl}/orders/${params.orderId}`,
+    orders_link: `${siteUrl}/orders`,
+    home_link: `${siteUrl}/`,
   };
 
   try {

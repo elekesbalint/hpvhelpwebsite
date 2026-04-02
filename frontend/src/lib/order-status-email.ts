@@ -21,6 +21,7 @@ export async function sendCourierAssignedEmail(params: CourierAssignedParams) {
   const shippedTemplateId =
     process.env.NEXT_PUBLIC_EMAILJS_SHIPPED_TEMPLATE_ID ??
     process.env.NEXT_PUBLIC_EMAILJS_CUSTOMER_TEMPLATE_ID;
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://hpvhelp.hu").replace(/\/+$/, "");
 
   if (
     !serviceId ||
@@ -57,6 +58,10 @@ export async function sendCourierAssignedEmail(params: CourierAssignedParams) {
         shipping_phone: params.shippingPhone ?? "—",
         items_text: params.itemsText ?? "A rendelés részletei a fiókodban érhetők el.",
         title: "Csomagod átadva a futárnak",
+        site_url: siteUrl,
+        order_link: `${siteUrl}/orders/${params.orderId}`,
+        orders_link: `${siteUrl}/orders`,
+        home_link: `${siteUrl}/`,
       },
       publicKey
     );

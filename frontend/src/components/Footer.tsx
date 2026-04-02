@@ -102,9 +102,20 @@ export default function Footer() {
       {/* Bottom bar */}
       <div className="border-t border-brand-100">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-5">
-          <p className="text-xs text-red-950/50">
-            Sunmed Kft. {year} © Minden jog fenntartva!
-          </p>
+          <div className="space-y-1 text-xs text-red-950/50">
+            <p>Sunmed Kft. {year} © Minden jog fenntartva!</p>
+            <p>
+              Designed &amp; coded by{" "}
+              <a
+                href="https://balintelekes.hu"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-brand-800 transition hover:text-brand-900"
+              >
+                Bálint Elekes
+              </a>
+            </p>
+          </div>
 
           <div className="flex flex-wrap items-center gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
