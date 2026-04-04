@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { addToCart } from "@/lib/cart";
+import { useCart } from "@/hooks/useCart";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/supabase";
 
@@ -38,6 +39,7 @@ const trustItems = [
 export default function ProductDetailsPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
+  const { totalItems } = useCart();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +79,10 @@ export default function ProductDetailsPage() {
 
   const inStock = (product?.stock ?? 0) > 0;
   const total = product ? Number(product.price) * qty : 0;
+  const effectiveVatRate = product ? (product.vat_rate ?? category?.vat_rate ?? null) : null;
+  const vatContent = product && effectiveVatRate != null
+    ? (Number(product.price) * effectiveVatRate) / (100 + effectiveVatRate)
+    : null;
 
   return (
     <div className="min-h-screen bg-[#fdf8f8] text-slate-900">
@@ -94,12 +100,17 @@ export default function ProductDetailsPage() {
           <Link
             href="/cart"
             aria-label="Kosár"
-            className="btn-press rounded-lg border border-brand-200 p-2.5 text-red-950 transition hover:bg-brand-50"
+            className="btn-press relative rounded-lg border border-brand-200 p-2.5 text-red-950 transition hover:bg-brand-50"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <circle cx="9" cy="20" r="1" /><circle cx="17" cy="20" r="1" />
               <path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.6L21 7H7" />
             </svg>
+            {totalItems > 0 ? (
+              <span className="absolute -right-2 -top-2 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-brand-900 px-1.5 text-[10px] font-bold leading-none text-white shadow-sm shadow-brand-300">
+                {totalItems > 99 ? "99+" : totalItems}
+              </span>
+            ) : null}
           </Link>
         </div>
       </header>
@@ -180,6 +191,11 @@ export default function ProductDetailsPage() {
                   {Number(product.price).toLocaleString("hu-HU")} Ft
                   <span className="ml-2 text-sm font-normal text-red-950/40">(bruttó)</span>
                 </p>
+                {effectiveVatRate != null ? (
+                  <p className="mt-2 text-sm text-red-950/70">
+                    ÁFA: {effectiveVatRate}% | Adótartalom: {vatContent?.toLocaleString("hu-HU", { maximumFractionDigits: 0 })} Ft
+                  </p>
+                ) : null}
 
                 <div className="mt-4 flex items-center gap-2">
                   <svg className="h-4 w-4 shrink-0 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

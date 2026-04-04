@@ -30,9 +30,11 @@ export default function AdminCategoriesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [categoryName, setCategoryName] = useState("");
+  const [categoryVatRate, setCategoryVatRate] = useState("");
 
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editName, setEditName] = useState("");
+  const [editVatRate, setEditVatRate] = useState("");
 
   const categorySlug = useMemo(() => slugify(categoryName), [categoryName]);
 
@@ -85,13 +87,16 @@ export default function AdminCategoriesPage() {
     setModal(null);
     setEditingCategory(null);
     setCategoryName("");
+    setCategoryVatRate("");
     setEditName("");
+    setEditVatRate("");
     setActionError(null);
   }
 
   function openEdit(cat: Category) {
     setEditingCategory(cat);
     setEditName(cat.name);
+    setEditVatRate(cat.vat_rate == null ? "" : String(cat.vat_rate));
     setModal("edit");
   }
 
@@ -99,16 +104,25 @@ export default function AdminCategoriesPage() {
     e.preventDefault();
     setActionError(null); setActionSuccess(null);
     const name = categoryName.trim();
+    const vatRate = categoryVatRate.trim() === "" ? null : Number(categoryVatRate);
     if (!name) { setActionError("A kategória neve kötelező."); return; }
+    if (vatRate != null && (Number.isNaN(vatRate) || vatRate < 0 || vatRate > 100)) {
+      setActionError("Az ÁFA mértékének 0 és 100 között kell lennie.");
+      return;
+    }
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("categories").insert({ name, slug: categorySlug, is_active: true });
+      const { error } = await supabase
+        .from("categories")
+        .insert({ name, slug: categorySlug, vat_rate: vatRate, is_active: true });
       if (error) { setActionError(error.message); return; }
       setModal(null);
       setEditingCategory(null);
       setCategoryName("");
+      setCategoryVatRate("");
       setEditName("");
+      setEditVatRate("");
       setActionSuccess("Kategória létrehozva.");
       await loadData();
     } finally {
@@ -121,19 +135,26 @@ export default function AdminCategoriesPage() {
     if (!editingCategory) return;
     setActionError(null); setActionSuccess(null);
     const name = editName.trim();
+    const vatRate = editVatRate.trim() === "" ? null : Number(editVatRate);
     if (!name) { setActionError("A kategória neve kötelező."); return; }
+    if (vatRate != null && (Number.isNaN(vatRate) || vatRate < 0 || vatRate > 100)) {
+      setActionError("Az ÁFA mértékének 0 és 100 között kell lennie.");
+      return;
+    }
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
       const { error } = await supabase
         .from("categories")
-        .update({ name, slug: slugify(name) })
+        .update({ name, slug: slugify(name), vat_rate: vatRate })
         .eq("id", editingCategory.id);
       if (error) { setActionError(error.message); return; }
       setModal(null);
       setEditingCategory(null);
       setCategoryName("");
+      setCategoryVatRate("");
       setEditName("");
+      setEditVatRate("");
       setActionSuccess("Kategória frissítve.");
       await loadData();
     } finally {
@@ -214,6 +235,7 @@ export default function AdminCategoriesPage() {
                 <th className="p-4 text-left font-bold uppercase tracking-wider text-xs text-brand-900">Kategória neve</th>
                 <th className="p-4 text-left font-bold uppercase tracking-wider text-xs text-brand-900">Slug</th>
                 <th className="p-4 text-center font-bold uppercase tracking-wider text-xs text-brand-900">Termékek száma</th>
+                <th className="p-4 text-center font-bold uppercase tracking-wider text-xs text-brand-900">Alap ÁFA</th>
                 <th className="p-4 text-center font-bold uppercase tracking-wider text-xs text-brand-900">Státusz</th>
                 <th className="p-4 text-right font-bold uppercase tracking-wider text-xs text-brand-900">Műveletek</th>
               </tr>
@@ -221,7 +243,7 @@ export default function AdminCategoriesPage() {
             <tbody className="divide-y divide-brand-50">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-sm text-red-950/50">
+                  <td colSpan={6} className="p-8 text-center text-sm text-red-950/50">
                     Nincs találat a keresési feltételeknek megfelelően.
                   </td>
                 </tr>
@@ -234,6 +256,9 @@ export default function AdminCategoriesPage() {
                       <span className="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-0.5 text-xs font-bold text-brand-900">
                         {productCounts[cat.id] ?? 0}
                       </span>
+                    </td>
+                    <td className="p-4 text-center text-xs font-semibold text-slate-700">
+                      {cat.vat_rate == null ? "Nincs megadva" : `${Number(cat.vat_rate)}%`}
                     </td>
                     <td className="p-4 text-center">
                       <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${cat.is_active ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-100 border-slate-200 text-slate-500"}`}>
@@ -299,6 +324,22 @@ export default function AdminCategoriesPage() {
                     {isCreate && categoryName ? (
                       <p className="mt-1 text-xs text-brand-700">Slug: {categorySlug}</p>
                     ) : null}
+                  </div>
+                  <div>
+                    <label className={labelCls}>Alap ÁFA mérték (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={isCreate ? categoryVatRate : editVatRate}
+                      onChange={(e) => isCreate ? setCategoryVatRate(e.target.value) : setEditVatRate(e.target.value)}
+                      placeholder="pl. 27"
+                      className={inputCls}
+                    />
+                    <p className="mt-1 text-xs text-red-950/60">
+                      Üresen hagyva nincs kategória szintu alapertelmezett AFA.
+                    </p>
                   </div>
                 </div>
 

@@ -33,6 +33,7 @@ export type Database = {
           id: string;
           name: string;
           slug: string;
+          vat_rate: number | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -41,6 +42,7 @@ export type Database = {
           id?: string;
           name: string;
           slug: string;
+          vat_rate?: number | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -48,6 +50,7 @@ export type Database = {
         Update: {
           name?: string;
           slug?: string;
+          vat_rate?: number | null;
           is_active?: boolean;
           updated_at?: string;
         };
@@ -62,6 +65,7 @@ export type Database = {
           description: string | null;
           price: number;
           compare_at_price: number | null;
+          vat_rate: number | null;
           stock: number;
           is_active: boolean;
           image_url: string | null;
@@ -76,6 +80,7 @@ export type Database = {
           description?: string | null;
           price: number;
           compare_at_price?: number | null;
+          vat_rate?: number | null;
           stock?: number;
           is_active?: boolean;
           image_url?: string | null;
@@ -89,6 +94,7 @@ export type Database = {
           description?: string | null;
           price?: number;
           compare_at_price?: number | null;
+          vat_rate?: number | null;
           stock?: number;
           is_active?: boolean;
           image_url?: string | null;

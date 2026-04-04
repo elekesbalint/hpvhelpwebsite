@@ -26,6 +26,7 @@ create table if not exists public.categories (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
   slug text not null unique,
+  vat_rate numeric(5,2) check (vat_rate is null or (vat_rate >= 0 and vat_rate <= 100)),
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -39,6 +40,7 @@ create table if not exists public.products (
   description text,
   price numeric(12,2) not null check (price >= 0),
   compare_at_price numeric(12,2) check (compare_at_price is null or compare_at_price >= 0),
+  vat_rate numeric(5,2) check (vat_rate is null or (vat_rate >= 0 and vat_rate <= 100)),
   stock integer not null default 0 check (stock >= 0),
   is_active boolean not null default true,
   image_url text,

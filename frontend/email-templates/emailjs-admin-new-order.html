@@ -1,0 +1,61 @@
+<div style="margin:0;padding:0;background:#fdf8f8;font-family:Arial,Helvetica,sans-serif;color:#1c1917;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#fdf8f8;padding:24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;width:100%;background:#ffffff;border:1px solid #fecaca;border-radius:14px;overflow:hidden;">
+          <tr>
+            <td style="background:linear-gradient(135deg,#7f1d1d,#b91c1c);padding:24px 32px;color:#ffffff;">
+              <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:0.9;">HPVHelp Admin</div>
+              <h1 style="margin:10px 0 0 0;font-size:26px;line-height:1.2;">Új rendelés érkezett</h1>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:24px 32px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #fecaca;border-radius:10px;background:#fef2f2;">
+                <tr><td style="padding:14px 16px;border-bottom:1px solid #fee2e2;font-weight:700;color:#991b1b;">Rendelés információk</td></tr>
+                <tr><td style="padding:14px 16px;font-size:14px;color:#1f2937;">
+                  <div style="margin-bottom:8px;"><strong>Rendelésszám:</strong> {{order_id}}</div>
+                  <div style="margin-bottom:8px;"><strong>Dátum:</strong> {{order_date}}</div>
+                  <div style="margin-bottom:8px;"><strong>Fizetési mód:</strong> {{payment_method}}</div>
+                  <div><strong>Végösszeg:</strong> {{total}}</div>
+                </td></tr>
+              </table>
+
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:14px;border:1px solid #fecaca;border-radius:10px;background:#fef2f2;">
+                <tr><td style="padding:14px 16px;border-bottom:1px solid #fee2e2;font-weight:700;color:#991b1b;">Vásárló adatok</td></tr>
+                <tr><td style="padding:14px 16px;font-size:14px;color:#1f2937;">
+                  <div style="margin-bottom:8px;"><strong>Név:</strong> {{shipping_name}}</div>
+                  <div style="margin-bottom:8px;"><strong>Email:</strong> {{customer_email}}</div>
+                  <div style="margin-bottom:8px;"><strong>Telefon:</strong> {{shipping_phone}}</div>
+                  <div><strong>Szállítási cím:</strong> {{shipping_address}}</div>
+                </td></tr>
+              </table>
+
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:14px;border:1px solid #fecaca;border-radius:10px;background:#fef2f2;">
+                <tr><td style="padding:14px 16px;border-bottom:1px solid #fee2e2;font-weight:700;color:#991b1b;">Rendelt tételek</td></tr>
+                <tr><td style="padding:14px 16px;font-size:14px;color:#1f2937;white-space:pre-line;line-height:1.5;">{{items_text}}</td></tr>
+              </table>
+
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:14px;">
+                <tr>
+                  <td>
+                    <a href="{{order_link}}" style="display:inline-block;background:#7f1d1d;color:#ffffff;text-decoration:none;padding:10px 14px;border-radius:8px;font-size:14px;font-weight:700;">
+                      Rendelés megnyitása
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#450a0a;padding:20px 32px;text-align:center;color:#fecaca;font-size:12px;">
+              HPVHelp Admin Értesítő • <a href="{{home_link}}" style="color:#fca5a5;text-decoration:none;">{{home_link}}</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</div>

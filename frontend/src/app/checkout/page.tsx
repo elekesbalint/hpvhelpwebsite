@@ -12,6 +12,8 @@ import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/supabase";
 
 type OrderItem = Database["public"]["Tables"]["order_items"]["Row"];
+type ProductRow = Database["public"]["Tables"]["products"]["Row"];
+type CategoryRow = Database["public"]["Tables"]["categories"]["Row"];
 
 async function sendOrderEmails(params: {
   orderId: string;
@@ -125,6 +127,7 @@ async function sendOrderEmails(params: {
 
 type PaymentMethod = "card" | "transfer" | "cod";
 type ShippingMethod = "posta" | "gls" | "csomagpont" | "pickup";
+type BuyerType = "individual" | "company";
 
 const shippingOptions: { id: ShippingMethod; label: string; sub: string; price: number }[] = [
   { id: "posta",     label: "Magyar Posta",  sub: "Házhozszállítás futárszolgálattal", price: 1950 },
@@ -164,7 +167,11 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { items, subtotal } = useCart();
 
+  const [buyerType, setBuyerType] = useState<BuyerType>("individual");
   const [name, setName] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [companyTaxNumber, setCompanyTaxNumber] = useState("");
+  const [contactName, setContactName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [zip, setZip] = useState("");
@@ -186,6 +193,7 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [vatContentTotal, setVatContentTotal] = useState<number>(0);
 
   const shipping = shippingOptions.find((o) => o.id === shippingMethod)?.price ?? 0;
 
@@ -239,6 +247,56 @@ export default function CheckoutPage() {
     if (items.length === 0) router.replace("/cart");
   }, [mounted, items.length, router]);
 
+  useEffect(() => {
+    if (!mounted || items.length === 0) {
+      setVatContentTotal(0);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const productIds = items.map((item) => item.productId);
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, category_id, vat_rate")
+        .in("id", productIds);
+
+      if (!products || cancelled) return;
+
+      const typedProducts = products as Pick<ProductRow, "id" | "category_id" | "vat_rate">[];
+      const categoryIds = Array.from(
+        new Set(typedProducts.map((p) => p.category_id).filter((id): id is string => Boolean(id)))
+      );
+
+      const categoryVatById = new Map<string, number | null>();
+      if (categoryIds.length > 0) {
+        const { data: categories } = await supabase
+          .from("categories")
+          .select("id, vat_rate")
+          .in("id", categoryIds);
+        (categories as Pick<CategoryRow, "id" | "vat_rate">[] | null)?.forEach((c) => {
+          categoryVatById.set(c.id, c.vat_rate);
+        });
+      }
+
+      const productMap = new Map(typedProducts.map((p) => [p.id, p]));
+      const totalVat = items.reduce((sum, item) => {
+        const p = productMap.get(item.productId);
+        if (!p) return sum;
+        const rate = p.vat_rate ?? (p.category_id ? categoryVatById.get(p.category_id) ?? null : null);
+        if (rate == null) return sum;
+        const gross = item.price * item.quantity;
+        return sum + (gross * rate) / (100 + rate);
+      }, 0);
+
+      if (!cancelled) setVatContentTotal(totalVat);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [items, mounted]);
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -252,12 +310,54 @@ export default function CheckoutPage() {
     setSubmitting(true);
 
     const shippingAddress = `${zip} ${city}, ${street} ${houseNumber}`;
+
+    if (buyerType === "individual") {
+      if (!name.trim()) {
+        setSubmitting(false);
+        setError("Kérjük add meg a teljes neved.");
+        return;
+      }
+    } else {
+      if (!companyName.trim() || !contactName.trim()) {
+        setSubmitting(false);
+        setError("Kérjük töltsd ki a cégnevet és a kapcsolattartó nevét.");
+        return;
+      }
+      if (!diffBilling && !companyTaxNumber.trim()) {
+        setSubmitting(false);
+        setError("Céges vásárlásnál az adószám megadása kötelező.");
+        return;
+      }
+    }
+
     // Számlázási cím (ha különbözik a szállítástól)
     if (diffBilling && (!billingName || !billingZip || !billingCity || !billingStreet || !billingHouseNumber)) {
       setSubmitting(false);
       setError("Kérjük töltsd ki az összes számlázási cím mezőt.");
       return;
     }
+    if (diffBilling && buyerType === "company" && !billingTaxNumber.trim()) {
+      setSubmitting(false);
+      setError("Céges vásárlásnál a számlázási adószám megadása kötelező.");
+      return;
+    }
+
+    const shippingName = buyerType === "individual" ? name.trim() : contactName.trim();
+
+    const invoiceLines: string[] = [];
+    if (buyerType === "company") {
+      if (diffBilling) {
+        invoiceLines.push(`Számlázás: ${billingName.trim()}, adószám: ${billingTaxNumber.trim()}`);
+        invoiceLines.push(`Számlázási cím: ${billingZip} ${billingCity}, ${billingStreet} ${billingHouseNumber}`);
+      } else {
+        invoiceLines.push(`Számlázás: ${companyName.trim()}, adószám: ${companyTaxNumber.trim()}`);
+      }
+      invoiceLines.push(`Cég / kapcsolattartó szállításhoz: ${companyName.trim()} – ${contactName.trim()}`);
+    }
+    const combinedNotes = [invoiceLines.length ? invoiceLines.join("\n") : null, notes.trim() || null]
+      .filter(Boolean)
+      .join("\n\n") || null;
+
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .insert({
@@ -273,10 +373,10 @@ export default function CheckoutPage() {
             : payment === "transfer"
               ? "manual_transfer"
               : "manual_cod",
-        shipping_name: name,
+        shipping_name: shippingName,
         shipping_phone: phone,
         shipping_address: shippingAddress,
-        notes: notes || null,
+        notes: combinedNotes,
       })
       .select("id")
       .single();
@@ -325,7 +425,7 @@ export default function CheckoutPage() {
     void sendOrderEmails({
       orderId: order.id,
       customerEmail: email,
-      customerName: name,
+      customerName: buyerType === "individual" ? name.trim() : `${contactName.trim()} (${companyName.trim()})`,
       paymentMethod: payment,
       shippingAddress: shippingMethod === "pickup"
         ? "Személyes átvétel: 7623 Pécs, Megyeri út 26."
@@ -390,11 +490,85 @@ export default function CheckoutPage() {
               {/* Shipping */}
               <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
                 <h2 className="mb-5 text-base font-bold text-slate-900">Szállítási adatok</h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className={labelCls}>Teljes név *</label>
-                    <input type="text" required value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="Kovács János" />
+
+                <div className="mb-5">
+                  <p className={`${labelCls} mb-2`}>Vásárló típusa *</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition ${
+                        buyerType === "individual" ? "border-brand-700 bg-brand-50" : "border-brand-100 bg-white hover:border-brand-300"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="buyerType"
+                        checked={buyerType === "individual"}
+                        onChange={() => setBuyerType("individual")}
+                        className="h-4 w-4 accent-brand-800"
+                      />
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">Magánszemély</p>
+                        <p className="text-xs text-red-950/60">Számlázáshoz nincs szükség adószámra.</p>
+                      </div>
+                    </label>
+                    <label
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition ${
+                        buyerType === "company" ? "border-brand-700 bg-brand-50" : "border-brand-100 bg-white hover:border-brand-300"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="buyerType"
+                        checked={buyerType === "company"}
+                        onChange={() => setBuyerType("company")}
+                        className="h-4 w-4 accent-brand-800"
+                      />
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">Cég</p>
+                        <p className="text-xs text-red-950/60">Cégnév és adószám kötelező (számlázás).</p>
+                      </div>
+                    </label>
                   </div>
+                </div>
+
+                <div className="space-y-4">
+                  {buyerType === "individual" ? (
+                    <div>
+                      <label className={labelCls}>Teljes név *</label>
+                      <input type="text" required value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="Kovács János" />
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <label className={labelCls}>Cégnév *</label>
+                        <input type="text" required value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={inputCls} placeholder="Példa Kft." />
+                      </div>
+                      {!diffBilling ? (
+                        <div>
+                          <label className={labelCls}>Adószám *</label>
+                          <input
+                            type="text"
+                            required
+                            value={companyTaxNumber}
+                            onChange={(e) => setCompanyTaxNumber(e.target.value)}
+                            className={inputCls}
+                            placeholder="12345678-1-11"
+                          />
+                        </div>
+                      ) : null}
+                      <div>
+                        <label className={labelCls}>Kapcsolattartó / átvevő teljes neve *</label>
+                        <input
+                          type="text"
+                          required
+                          value={contactName}
+                          onChange={(e) => setContactName(e.target.value)}
+                          className={inputCls}
+                          placeholder="A futár ezt a nevet látja a szállításnál"
+                        />
+                      </div>
+                    </>
+                  )}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className={labelCls}>Email cím *</label>
@@ -445,14 +619,32 @@ export default function CheckoutPage() {
                   <div className="mt-4 space-y-4 rounded-xl border border-brand-100 bg-brand-50/30 p-4">
                     <p className="text-xs font-bold uppercase tracking-widest text-brand-700">Számlázási cím</p>
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className={labelCls}>Számlázási név *</label>
-                        <input type="text" required value={billingName} onChange={(e) => setBillingName(e.target.value)} className={inputCls} placeholder="Cégnév vagy teljes név" />
+                      <div className={buyerType === "individual" ? "sm:col-span-2" : undefined}>
+                        <label className={labelCls}>
+                          {buyerType === "company" ? "Számlázási név (cégnév) *" : "Számlázási név *"}
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={billingName}
+                          onChange={(e) => setBillingName(e.target.value)}
+                          className={inputCls}
+                          placeholder={buyerType === "company" ? "Példa Kereskedelmi Kft." : "Kovács János"}
+                        />
                       </div>
-                      <div>
-                        <label className={labelCls}>Adószám <span className="font-normal text-red-950/50">(opcionális)</span></label>
-                        <input type="text" value={billingTaxNumber} onChange={(e) => setBillingTaxNumber(e.target.value)} className={inputCls} placeholder="12345678-1-11" />
-                      </div>
+                      {buyerType === "company" ? (
+                        <div>
+                          <label className={labelCls}>Adószám *</label>
+                          <input
+                            type="text"
+                            required
+                            value={billingTaxNumber}
+                            onChange={(e) => setBillingTaxNumber(e.target.value)}
+                            className={inputCls}
+                            placeholder="12345678-1-11"
+                          />
+                        </div>
+                      ) : null}
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
@@ -608,6 +800,10 @@ export default function CheckoutPage() {
                     <span className="font-semibold">{subtotal.toLocaleString("hu-HU")} Ft</span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-red-950/60">Adótartalom (ÁFA)</span>
+                    <span className="font-semibold">{Math.round(vatContentTotal).toLocaleString("hu-HU")} Ft</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-red-950/60">Szállítás</span>
                     <span className={`font-semibold ${shipping === 0 ? "text-emerald-600" : "text-slate-900"}`}>
                       {shipping === 0 ? "Ingyenes" : `${shipping.toLocaleString("hu-HU")} Ft`}
@@ -646,7 +842,7 @@ export default function CheckoutPage() {
                 </button>
 
                 <p className="mt-3 text-center text-xs text-red-950/40">
-                  A rendelés leadásával elfogadod az ÁSZF-et
+                  A rendelés leadásával elfogadod az ÁSZF-et és az Adatvédelmi nyilatkozatot. A végösszeg bruttó ár.
                 </p>
               </div>
             </div>

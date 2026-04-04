@@ -44,6 +44,8 @@ export default function AdminProductsPage() {
   const [productPrice, setProductPrice] = useState("0");
   const [productStock, setProductStock] = useState("0");
   const [productCategoryId, setProductCategoryId] = useState<string>("");
+  const [productVatMode, setProductVatMode] = useState<"inherit" | "custom">("inherit");
+  const [productVatRate, setProductVatRate] = useState("");
   const [productImageUrl, setProductImageUrl] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
 
@@ -53,6 +55,8 @@ export default function AdminProductsPage() {
   const [editProductPrice, setEditProductPrice] = useState("0");
   const [editProductStock, setEditProductStock] = useState("0");
   const [editProductCategoryId, setEditProductCategoryId] = useState("");
+  const [editVatMode, setEditVatMode] = useState<"inherit" | "custom">("inherit");
+  const [editVatRate, setEditVatRate] = useState("");
   const [editProductImageUrl, setEditProductImageUrl] = useState("");
 
   const [search, setSearch] = useState("");
@@ -167,9 +171,14 @@ export default function AdminProductsPage() {
     const name = productName.trim();
     const price = Number(productPrice);
     const stock = Number(productStock);
+    const vatRate = productVatMode === "inherit" ? null : Number(productVatRate);
     if (!name) { setActionError("A termék neve kötelező."); return; }
     if (Number.isNaN(price) || price < 0) { setActionError("Az ár érvénytelen."); return; }
     if (!Number.isInteger(stock) || stock < 0) { setActionError("A készlet érvénytelen."); return; }
+    if (productVatMode === "custom" && (Number.isNaN(vatRate) || vatRate == null || vatRate < 0 || vatRate > 100)) {
+      setActionError("Az egyedi ÁFA mértékének 0 és 100 között kell lennie.");
+      return;
+    }
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
@@ -177,12 +186,15 @@ export default function AdminProductsPage() {
         name, slug: productSlug, price, stock,
         description: productDescription || null,
         category_id: productCategoryId || null,
+        vat_rate: vatRate,
         image_url: productImageUrl || null,
         is_active: true,
       });
       if (error) { setActionError(error.message); return; }
       setProductName(""); setProductDescription(""); setProductPrice("0");
-      setProductStock("0"); setProductCategoryId(""); setProductImageUrl("");
+      setProductStock("0"); setProductCategoryId("");
+      setProductVatMode("inherit"); setProductVatRate("");
+      setProductImageUrl("");
       setModal(null);
       setActionSuccess("Termék létrehozva.");
       await loadData();
@@ -198,9 +210,14 @@ export default function AdminProductsPage() {
     const name = editProductName.trim();
     const price = Number(editProductPrice);
     const stock = Number(editProductStock);
+    const vatRate = editVatMode === "inherit" ? null : Number(editVatRate);
     if (!name) { setActionError("A termék neve kötelező."); return; }
     if (Number.isNaN(price) || price < 0) { setActionError("Az ár érvénytelen."); return; }
     if (!Number.isInteger(stock) || stock < 0) { setActionError("A készlet érvénytelen."); return; }
+    if (editVatMode === "custom" && (Number.isNaN(vatRate) || vatRate == null || vatRate < 0 || vatRate > 100)) {
+      setActionError("Az egyedi ÁFA mértékének 0 és 100 között kell lennie.");
+      return;
+    }
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
@@ -208,6 +225,7 @@ export default function AdminProductsPage() {
         name, slug: slugify(name), price, stock,
         description: editProductDescription || null,
         category_id: editProductCategoryId || null,
+        vat_rate: vatRate,
         image_url: editProductImageUrl || null,
       }).eq("id", editingProduct.id);
       if (error) { setActionError(error.message); return; }
@@ -223,6 +241,10 @@ export default function AdminProductsPage() {
     if (isSubmitting || imageUploading) return;
     setModal(null);
     setEditingProduct(null);
+    setProductVatMode("inherit");
+    setProductVatRate("");
+    setEditVatMode("inherit");
+    setEditVatRate("");
     setActionError(null);
   }
 
@@ -267,6 +289,8 @@ export default function AdminProductsPage() {
     setEditProductPrice(String(product.price));
     setEditProductStock(String(product.stock));
     setEditProductCategoryId(product.category_id ?? "");
+    setEditVatMode(product.vat_rate == null ? "inherit" : "custom");
+    setEditVatRate(product.vat_rate == null ? "" : String(product.vat_rate));
     setEditProductImageUrl(product.image_url ?? "");
     setModal("edit");
   }
@@ -367,6 +391,7 @@ export default function AdminProductsPage() {
                 </th>
                 <th className="p-4 text-left font-bold uppercase tracking-wider text-xs text-brand-900">Termék</th>
                 <th className="p-4 text-left font-bold uppercase tracking-wider text-xs text-brand-900">Kategória</th>
+                <th className="p-4 text-center font-bold uppercase tracking-wider text-xs text-brand-900">ÁFA</th>
                 <th className="p-4 text-right font-bold uppercase tracking-wider text-xs text-brand-900">Ár</th>
                 <th className="p-4 text-right font-bold uppercase tracking-wider text-xs text-brand-900">Darab</th>
                 <th className="p-4 text-center font-bold uppercase tracking-wider text-xs text-brand-900">Státusz</th>
@@ -376,7 +401,7 @@ export default function AdminProductsPage() {
             <tbody className="divide-y divide-brand-50">
               {paginatedProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-sm text-red-950/50">
+                  <td colSpan={8} className="p-8 text-center text-sm text-red-950/50">
                     Nincs találat a keresési feltételeknek megfelelően.
                   </td>
                 </tr>
@@ -409,6 +434,13 @@ export default function AdminProductsPage() {
                     </td>
                     <td className="p-4 text-red-950/70">
                       {product.category_id ? (categoriesById.get(product.category_id)?.name ?? "—") : "—"}
+                    </td>
+                    <td className="p-4 text-center text-xs font-semibold text-slate-700">
+                      {product.vat_rate != null
+                        ? `${Number(product.vat_rate)}% (egyedi)`
+                        : product.category_id && categoriesById.get(product.category_id)?.vat_rate != null
+                          ? `${Number(categoriesById.get(product.category_id)?.vat_rate)}% (kategoriabol)`
+                          : "Nincs"}
                     </td>
                     <td className="p-4 text-right font-semibold text-slate-900">
                       {Number(product.price).toLocaleString("hu-HU")} Ft
@@ -539,6 +571,42 @@ export default function AdminProductsPage() {
                       <option value="">Válasszon kategóriát</option>
                       {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>ÁFA beállítás</label>
+                    <div className="space-y-2 rounded-xl border border-brand-200 p-3">
+                      <label className="flex items-center gap-2 text-sm text-slate-700">
+                        <input
+                          type="radio"
+                          name="vat-mode"
+                          checked={modal === "create" ? productVatMode === "inherit" : editVatMode === "inherit"}
+                          onChange={() => modal === "create" ? setProductVatMode("inherit") : setEditVatMode("inherit")}
+                        />
+                        Kategória alapértelmezett (ha van)
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-slate-700">
+                        <input
+                          type="radio"
+                          name="vat-mode"
+                          checked={modal === "create" ? productVatMode === "custom" : editVatMode === "custom"}
+                          onChange={() => modal === "create" ? setProductVatMode("custom") : setEditVatMode("custom")}
+                        />
+                        Egyedi termék ÁFA
+                      </label>
+                      {(modal === "create" ? productVatMode === "custom" : editVatMode === "custom") ? (
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={modal === "create" ? productVatRate : editVatRate}
+                          onChange={(e) => modal === "create" ? setProductVatRate(e.target.value) : setEditVatRate(e.target.value)}
+                          placeholder="pl. 27"
+                          className={inputCls}
+                        />
+                      ) : null}
+                    </div>
                   </div>
 
                   <div>
