@@ -298,7 +298,16 @@ export default function Home() {
                         <p className="text-base font-bold text-brand-900">{Number(product.price).toLocaleString("hu-HU")} Ft</p>
                       </div>
                       <button
-                        onClick={(e) => { e.stopPropagation(); addToCart({ productId: product.id, slug: product.slug, name: product.name, price: Number(product.price) }); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addToCart({
+                            productId: product.id,
+                            slug: product.slug,
+                            name: product.name,
+                            price: Number(product.price),
+                            imageUrl: product.image_url ?? undefined,
+                          });
+                        }}
                         disabled={product.stock <= 0}
                         className="btn-press mt-3 w-full rounded-xl bg-brand-900 px-3 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
                       >

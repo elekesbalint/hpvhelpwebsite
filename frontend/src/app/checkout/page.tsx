@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import emailjs from "@emailjs/browser";
 import Link from "next/link";
@@ -780,7 +781,11 @@ export default function CheckoutPage() {
                 <div className="space-y-3">
                   {items.map((item) => (
                     <div key={item.productId} className="flex items-center gap-3">
-                      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-brand-100 bg-gradient-to-br from-brand-50 to-brand-100" />
+                      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-brand-100 bg-gradient-to-br from-brand-50 to-brand-100">
+                        {item.imageUrl ? (
+                          <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+                        ) : null}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-900">{item.name}</p>
                         <p className="text-xs text-red-950/50">Mennyiség: {item.quantity}</p>

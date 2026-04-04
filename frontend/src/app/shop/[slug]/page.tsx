@@ -71,7 +71,13 @@ export default function ProductDetailsPage() {
   function handleAddToCart() {
     if (!product || product.stock <= 0) return;
     for (let i = 0; i < qty; i++) {
-      addToCart({ productId: product.id, slug: product.slug, name: product.name, price: Number(product.price) });
+      addToCart({
+        productId: product.id,
+        slug: product.slug,
+        name: product.name,
+        price: Number(product.price),
+        imageUrl: product.image_url ?? undefined,
+      });
     }
     setAdded(true);
     setTimeout(() => setAdded(false), 2500);

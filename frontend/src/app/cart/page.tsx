@@ -1,12 +1,38 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { setCartItems } from "@/lib/cart";
 import { useCart } from "@/hooks/useCart";
+import { supabase } from "@/lib/supabase";
 
 export default function CartPage() {
   const router = useRouter();
   const { items, subtotal, updateCartQuantity, removeFromCart } = useCart();
+
+  useEffect(() => {
+    const missing = items.filter((i) => i.imageUrl === undefined);
+    if (missing.length === 0) return;
+    const ids = missing.map((i) => i.productId);
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase.from("products").select("id, image_url").in("id", ids);
+      if (cancelled || !data) return;
+      const byId = new Map(data.map((p) => [p.id, p.image_url as string | null]));
+      const updated = items.map((i) => {
+        if (i.imageUrl !== undefined) return i;
+        if (!byId.has(i.productId)) return { ...i, imageUrl: "" };
+        return { ...i, imageUrl: byId.get(i.productId) ?? "" };
+      });
+      const changed = updated.some((u, idx) => u.imageUrl !== items[idx].imageUrl);
+      if (changed) setCartItems(updated);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [items]);
 
   const shipping = 0;
   const total = subtotal + shipping;
@@ -65,7 +91,11 @@ export default function CartPage() {
                   key={item.productId}
                   className="flex flex-wrap items-center gap-4 rounded-2xl border border-brand-100 bg-white p-4 shadow-sm transition hover:border-brand-200"
                 >
-                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-brand-100 bg-gradient-to-br from-brand-50 to-brand-100" />
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-brand-100 bg-gradient-to-br from-brand-50 to-brand-100">
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+                    ) : null}
+                  </div>
 
                   <div className="flex-1 min-w-0">
                     <p className="truncate font-bold text-slate-900">{item.name}</p>

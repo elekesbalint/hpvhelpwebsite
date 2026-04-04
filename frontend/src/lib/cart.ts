@@ -45,6 +45,9 @@ export function addToCart(item: Omit<CartItem, "quantity">, quantity = 1) {
 
   if (existing) {
     existing.quantity += quantity;
+    if (item.imageUrl != null && item.imageUrl !== "") {
+      existing.imageUrl = item.imageUrl;
+    }
   } else {
     items.push({ ...item, quantity });
   }
