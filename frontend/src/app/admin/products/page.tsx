@@ -3,6 +3,7 @@
 
 import {
   ChangeEvent,
+  DragEvent,
   FormEvent,
   type WheelEvent,
   useCallback,
@@ -14,6 +15,7 @@ import RichTextEditor from "@/components/RichTextEditor";
 import { sortCategoriesForDisplay } from "@/lib/category-sort";
 import { flattenCategoriesForSelect } from "@/lib/categories";
 import {
+  buildSortOrderUpdates,
   compareProductsBySortOrder,
   nextProductSortOrder,
   sortProductsForDisplay,
@@ -112,6 +114,8 @@ export default function AdminProductsPage() {
     "custom" | "newest" | "oldest" | "price-asc" | "price-desc" | "stock-asc" | "stock-desc"
   >("custom");
   const [reorderBusy, setReorderBusy] = useState(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -211,34 +215,65 @@ export default function AdminProductsPage() {
 
   const orderedForReorder = useMemo(() => sortProductsForDisplay(products), [products]);
 
-  async function moveProduct(productId: string, direction: "up" | "down") {
-    if (!canReorder) return;
-    const index = orderedForReorder.findIndex((p) => p.id === productId);
-    if (index < 0) return;
-    const swapIndex = direction === "up" ? index - 1 : index + 1;
-    if (swapIndex < 0 || swapIndex >= orderedForReorder.length) return;
-
-    const current = orderedForReorder[index];
-    const neighbor = orderedForReorder[swapIndex];
-    const currentOrder = current.sort_order ?? (index + 1) * 10;
-    const neighborOrder = neighbor.sort_order ?? (swapIndex + 1) * 10;
+  async function persistProductOrder(fromIndex: number, toIndex: number) {
+    if (!canReorder || fromIndex === toIndex) return;
+    const updates = buildSortOrderUpdates(orderedForReorder, fromIndex, toIndex);
+    if (updates.length === 0) return;
 
     setReorderBusy(true);
     setActionError(null);
     try {
-      const [a, b] = await Promise.all([
-        supabase.from("products").update({ sort_order: neighborOrder }).eq("id", current.id),
-        supabase.from("products").update({ sort_order: currentOrder }).eq("id", neighbor.id),
-      ]);
-      if (a.error || b.error) {
-        setActionError(a.error?.message ?? b.error?.message ?? "Sorrend mentése sikertelen.");
+      const results = await Promise.all(
+        updates.map((u) => supabase.from("products").update({ sort_order: u.sort_order }).eq("id", u.id)),
+      );
+      const failed = results.find((r) => r.error);
+      if (failed?.error) {
+        setActionError(failed.error.message);
         return;
       }
       setActionSuccess("Sorrend frissítve.");
       await loadData();
     } finally {
       setReorderBusy(false);
+      setDraggingId(null);
+      setDragOverId(null);
     }
+  }
+
+  async function moveProduct(productId: string, direction: "up" | "down") {
+    if (!canReorder) return;
+    const index = orderedForReorder.findIndex((p) => p.id === productId);
+    if (index < 0) return;
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= orderedForReorder.length) return;
+    await persistProductOrder(index, swapIndex);
+  }
+
+  function handleDragStart(event: DragEvent<HTMLButtonElement>, productId: string) {
+    if (!canReorder) return;
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", productId);
+    setDraggingId(productId);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLTableRowElement>, productId: string) {
+    if (!canReorder || !draggingId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (dragOverId !== productId) setDragOverId(productId);
+  }
+
+  function handleDrop(event: DragEvent<HTMLTableRowElement>, targetId: string) {
+    event.preventDefault();
+    if (!canReorder || !draggingId || draggingId === targetId) return;
+    const fromIndex = orderedForReorder.findIndex((p) => p.id === draggingId);
+    const toIndex = orderedForReorder.findIndex((p) => p.id === targetId);
+    void persistProductOrder(fromIndex, toIndex);
+  }
+
+  function handleDragEnd() {
+    setDraggingId(null);
+    setDragOverId(null);
   }
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / rowsPerPage));
@@ -247,6 +282,7 @@ export default function AdminProductsPage() {
     (currentPage - 1) * rowsPerPage,
     currentPage * rowsPerPage
   );
+  const displayProducts = canReorder ? orderedForReorder : paginatedProducts;
 
   async function uploadProductImage(file: File): Promise<string | null> {
     setImageUploading(true);
@@ -530,6 +566,11 @@ export default function AdminProductsPage() {
             <option value="stock-desc">Készlet: csökkenő</option>
           </select>
         </div>
+        {sort === "custom" && canReorder ? (
+          <p className="mt-3 text-xs text-brand-800">
+            Fogd meg a <span className="font-semibold">⠿</span> ikont, és húzd a sort a kívánt helyre. A ↑↓ gombok is használhatók.
+          </p>
+        ) : null}
         {sort === "custom" && !canReorder ? (
           <p className="mt-3 text-xs text-amber-800">
             A sorrend állításához kapcsold ki a keresést és a szűrőket (minden kategória, minden státusz).
@@ -549,23 +590,31 @@ export default function AdminProductsPage() {
 
       <div className="flex items-center justify-between rounded-2xl border border-brand-100 bg-white px-4 py-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-3 text-sm text-red-950/70">
-          <p>Sor / oldal</p>
-          <select
-            value={rowsPerPage}
-            onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }}
-            className="rounded-lg border border-brand-200 px-2.5 py-1 text-sm outline-none transition focus:border-brand-600"
-          >
-            <option value={10}>10</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-          </select>
-          <p>Összesen {filteredProducts.length} termék</p>
+          {canReorder ? (
+            <p>Összesen {orderedForReorder.length} termék — húzással rendezhető lista</p>
+          ) : (
+            <>
+              <p>Sor / oldal</p>
+              <select
+                value={rowsPerPage}
+                onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }}
+                className="rounded-lg border border-brand-200 px-2.5 py-1 text-sm outline-none transition focus:border-brand-600"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
+              <p>Összesen {filteredProducts.length} termék</p>
+            </>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="rounded-lg border border-brand-200 px-3 py-1.5 text-sm font-semibold text-brand-900 transition hover:bg-brand-50 disabled:opacity-40">Előző</button>
-          <p className="text-sm font-semibold text-red-950/70">{currentPage}/{totalPages}</p>
-          <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="rounded-lg border border-brand-200 px-3 py-1.5 text-sm font-semibold text-brand-900 transition hover:bg-brand-50 disabled:opacity-40">Következő</button>
-        </div>
+        {!canReorder ? (
+          <div className="flex items-center gap-2">
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="rounded-lg border border-brand-200 px-3 py-1.5 text-sm font-semibold text-brand-900 transition hover:bg-brand-50 disabled:opacity-40">Előző</button>
+            <p className="text-sm font-semibold text-red-950/70">{currentPage}/{totalPages}</p>
+            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="rounded-lg border border-brand-200 px-3 py-1.5 text-sm font-semibold text-brand-900 transition hover:bg-brand-50 disabled:opacity-40">Következő</button>
+          </div>
+        ) : null}
       </div>
 
       <div className="rounded-2xl border border-brand-100 bg-white shadow-sm overflow-hidden">
@@ -580,10 +629,10 @@ export default function AdminProductsPage() {
                 <th className="p-4 text-left">
                   <input
                     type="checkbox"
-                    checked={paginatedProducts.length > 0 && paginatedProducts.every((p) => selectedIds.includes(p.id))}
+                    checked={displayProducts.length > 0 && displayProducts.every((p) => selectedIds.includes(p.id))}
                     onChange={(e) => {
-                      if (e.target.checked) setSelectedIds((prev) => { const s = new Set(prev); paginatedProducts.forEach((p) => s.add(p.id)); return Array.from(s); });
-                      else setSelectedIds((prev) => prev.filter((id) => !paginatedProducts.some((p) => p.id === id)));
+                      if (e.target.checked) setSelectedIds((prev) => { const s = new Set(prev); displayProducts.forEach((p) => s.add(p.id)); return Array.from(s); });
+                      else setSelectedIds((prev) => prev.filter((id) => !displayProducts.some((p) => p.id === id)));
                     }}
                     className="rounded"
                   />
@@ -601,20 +650,27 @@ export default function AdminProductsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-50">
-              {paginatedProducts.length === 0 ? (
+              {displayProducts.length === 0 ? (
                 <tr>
                   <td colSpan={sort === "custom" ? 9 : 8} className="p-8 text-center text-sm text-red-950/50">
                     Nincs találat a keresési feltételeknek megfelelően.
                   </td>
                 </tr>
               ) : (
-                paginatedProducts.map((product) => {
+                displayProducts.map((product) => {
                   const globalIndex = orderedForReorder.findIndex((p) => p.id === product.id);
                   const canMoveUp = canReorder && globalIndex > 0;
                   const canMoveDown = canReorder && globalIndex >= 0 && globalIndex < orderedForReorder.length - 1;
+                  const isDragging = draggingId === product.id;
+                  const isDragOver = dragOverId === product.id && draggingId !== product.id;
 
                   return (
-                  <tr key={product.id} className="transition hover:bg-brand-50/30">
+                  <tr
+                    key={product.id}
+                    className={`transition hover:bg-brand-50/30 ${isDragging ? "opacity-40" : ""} ${isDragOver ? "bg-brand-100/80 ring-2 ring-inset ring-brand-400" : ""}`}
+                    onDragOver={(e) => handleDragOver(e, product.id)}
+                    onDrop={(e) => handleDrop(e, product.id)}
+                  >
                     <td className="p-4">
                       <input
                         type="checkbox"
@@ -631,6 +687,18 @@ export default function AdminProductsPage() {
                         <div className="flex flex-col items-center gap-1">
                           <button
                             type="button"
+                            draggable={canReorder}
+                            disabled={!canReorder}
+                            onDragStart={(e) => handleDragStart(e, product.id)}
+                            onDragEnd={handleDragEnd}
+                            className={`rounded border border-brand-200 px-2 py-0.5 text-sm leading-none text-brand-800 transition hover:bg-brand-50 disabled:opacity-30 ${canReorder ? "cursor-grab active:cursor-grabbing" : ""}`}
+                            aria-label={`${product.name} húzása`}
+                            title={canReorder ? "Húzással rendezhető" : undefined}
+                          >
+                            ⠿
+                          </button>
+                          <button
+                            type="button"
                             disabled={!canMoveUp}
                             onClick={() => void moveProduct(product.id, "up")}
                             className="rounded border border-brand-200 px-2 py-0.5 text-xs font-bold text-brand-900 transition hover:bg-brand-50 disabled:opacity-30"
@@ -638,7 +706,6 @@ export default function AdminProductsPage() {
                           >
                             ↑
                           </button>
-                          <span className="font-mono text-[10px] text-red-950/45">{product.sort_order ?? "—"}</span>
                           <button
                             type="button"
                             disabled={!canMoveDown}

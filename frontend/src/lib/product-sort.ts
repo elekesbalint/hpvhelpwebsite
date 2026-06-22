@@ -22,3 +22,18 @@ export function nextProductSortOrder(products: Product[]): number {
   const max = products.reduce((acc, p) => Math.max(acc, p.sort_order ?? 0), 0);
   return max + 10;
 }
+
+/** Átrendezés után új sort_order értékek (10, 20, 30…). */
+export function buildSortOrderUpdates<T extends Product>(
+  products: T[],
+  fromIndex: number,
+  toIndex: number,
+): Array<{ id: string; sort_order: number }> {
+  if (fromIndex < 0 || toIndex < 0 || fromIndex >= products.length || toIndex >= products.length) {
+    return [];
+  }
+  const ordered = [...products];
+  const [moved] = ordered.splice(fromIndex, 1);
+  ordered.splice(toIndex, 0, moved);
+  return ordered.map((p, i) => ({ id: p.id, sort_order: (i + 1) * 10 }));
+}
