@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 
-const DEFAULT_SRC = "/branding/sam/logo-burgundy.png";
+const DEFAULT_SRC = "/branding/sam/logo-burgundy-transparent.png";
 
 type Props = {
   className?: string;
@@ -8,20 +8,16 @@ type Props = {
   width?: number;
 };
 
-/** SAM (Sexual Activity Monitoring) márkalogó – fekete háttérrel exportált PNG. */
+/** SAM (Sexual Activity Monitoring) márkalogó – átlátszó háttérrel. */
 export default function SamBrandLogo({ className = "", width = 200 }: Props) {
   return (
-    <div
-      className={`inline-flex items-center justify-center rounded-2xl bg-black px-5 py-3 ${className}`.trim()}
-    >
-      <img
-        src={DEFAULT_SRC}
-        alt="SAM – Sexual Activity Monitoring"
-        width={width}
-        height={Math.round(width * 0.35)}
-        className="h-auto w-auto max-w-full object-contain"
-        style={{ maxWidth: width }}
-      />
-    </div>
+    <img
+      src={DEFAULT_SRC}
+      alt="SAM – Sexual Activity Monitoring"
+      width={width}
+      height={Math.round(width * 0.35)}
+      className={`h-auto max-w-full object-contain ${className}`.trim()}
+      style={{ maxWidth: width }}
+    />
   );
 }
