@@ -112,7 +112,8 @@ export default function AdminProductsPage() {
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
   const [sort, setSort] = useState<
     "custom" | "newest" | "oldest" | "price-asc" | "price-desc" | "stock-asc" | "stock-desc"
-  >("newest");
+  >("custom");
+  const [reorderMode, setReorderMode] = useState(false);
   const [reorderBusy, setReorderBusy] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -207,7 +208,7 @@ export default function AdminProductsPage() {
   }, [products, search, filterCategoryId, filterStatus, sort, categoriesById]);
 
   const canReorder =
-    sort === "custom" &&
+    reorderMode &&
     !search.trim() &&
     filterCategoryId === "all" &&
     filterStatus === "all" &&
@@ -484,6 +485,7 @@ export default function AdminProductsPage() {
   }
 
   function enterReorderMode() {
+    setReorderMode(true);
     setSort("custom");
     setSearch("");
     setFilterCategoryId("all");
@@ -494,7 +496,7 @@ export default function AdminProductsPage() {
   }
 
   function exitReorderMode() {
-    setSort("newest");
+    setReorderMode(false);
     setPage(1);
     setDraggingId(null);
     setDragOverId(null);
@@ -502,7 +504,7 @@ export default function AdminProductsPage() {
   }
 
   function toggleReorderMode() {
-    if (sort === "custom") exitReorderMode();
+    if (reorderMode) exitReorderMode();
     else enterReorderMode();
   }
 
@@ -606,10 +608,15 @@ export default function AdminProductsPage() {
           </select>
           <select
             value={sort}
-            onChange={(e) => { setSort(e.target.value as typeof sort); setPage(1); }}
+            onChange={(e) => {
+              const value = e.target.value as typeof sort;
+              setSort(value);
+              if (value !== "custom") setReorderMode(false);
+              setPage(1);
+            }}
             className="rounded-xl border border-brand-200 px-3 py-2 text-sm outline-none transition focus:border-brand-600"
           >
-            <option value="custom">Egyéni sorrend (húzható)</option>
+            <option value="custom">Webshop sorrend</option>
             <option value="newest">Legújabb</option>
             <option value="oldest">Legrégebbi</option>
             <option value="price-asc">Ár: növekvő</option>
@@ -618,14 +625,14 @@ export default function AdminProductsPage() {
             <option value="stock-desc">Készlet: csökkenő</option>
           </select>
         </div>
-        {sort === "custom" && canReorder ? (
+        {canReorder ? (
           <p className="mt-3 text-xs text-brand-800">
             Fogd meg a <span className="font-semibold">⠿</span> ikont, és húzd a sort a kívánt helyre. A ↑↓ gombok is használhatók.
           </p>
         ) : null}
-        {sort === "custom" && !canReorder ? (
+        {reorderMode && !canReorder ? (
           <p className="mt-3 text-xs text-amber-800">
-            A sorrend állításához kapcsold ki a keresést és a szűrőket (minden kategória, minden státusz).
+            A húzáshoz kapcsold ki a keresést és a szűrőket (minden kategória, minden státusz).
           </p>
         ) : null}
       </div>
@@ -689,7 +696,7 @@ export default function AdminProductsPage() {
                     className="rounded"
                   />
                 </th>
-                {sort === "custom" ? (
+                {reorderMode ? (
                   <th className="p-4 text-center font-bold uppercase tracking-wider text-xs text-brand-900 w-24">Sorrend</th>
                 ) : null}
                 <th className="p-4 text-left font-bold uppercase tracking-wider text-xs text-brand-900">Termék</th>
@@ -704,7 +711,7 @@ export default function AdminProductsPage() {
             <tbody className="divide-y divide-brand-50">
               {displayProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={sort === "custom" ? 9 : 8} className="p-8 text-center text-sm text-red-950/50">
+                  <td colSpan={reorderMode ? 9 : 8} className="p-8 text-center text-sm text-red-950/50">
                     Nincs találat a keresési feltételeknek megfelelően.
                   </td>
                 </tr>
@@ -734,7 +741,7 @@ export default function AdminProductsPage() {
                         className="rounded"
                       />
                     </td>
-                    {sort === "custom" ? (
+                    {reorderMode ? (
                       <td className="p-4">
                         <div className="flex flex-col items-center gap-1">
                           <button
