@@ -18,6 +18,7 @@ import {
   productMatchesCategoryFilter,
 } from "@/lib/categories";
 import { getProductPricing } from "@/lib/pricing";
+import { compareProductsBySortOrder } from "@/lib/product-sort";
 import { buildCategoryFilterUrl, buildProductSearchUrl, CATEGORY_SLUGS, readCategoryFilterSlug, readProductSearchQuery } from "@/lib/product-search-url";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/supabase";
@@ -39,7 +40,7 @@ function HomePage() {
   const urlSearchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [sortBy, setSortBy] = useState<"newest" | "price_asc" | "price_desc" | "name_asc">("newest");
+  const [sortBy, setSortBy] = useState<"default" | "newest" | "price_asc" | "price_desc" | "name_asc">("default");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -145,7 +146,12 @@ function HomePage() {
 
   useEffect(() => {
     void Promise.all([
-      supabase.from("products").select("*").eq("is_active", true).order("created_at", { ascending: false }),
+      supabase
+        .from("products")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false }),
       supabase.from("categories").select("*").eq("is_active", true).order("name", { ascending: true }),
     ]).then(([pr, cr]) => {
       if (pr.error || cr.error) {
@@ -178,7 +184,8 @@ function HomePage() {
     if (sortBy === "price_asc") list.sort((a, b) => Number(a.price) - Number(b.price));
     else if (sortBy === "price_desc") list.sort((a, b) => Number(b.price) - Number(a.price));
     else if (sortBy === "name_asc") list.sort((a, b) => a.name.localeCompare(b.name, "hu"));
-    else list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    else if (sortBy === "newest") list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    else list.sort(compareProductsBySortOrder);
     return list;
   }, [products, categories, search, selectedCategory, sortBy, categoriesById]);
 
@@ -500,6 +507,7 @@ function HomePage() {
             onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
             className="rounded-2xl border border-brand-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition hover:border-brand-500 cursor-pointer"
           >
+            <option value="default">Ajánlott sorrend</option>
             <option value="newest">Legújabb</option>
             <option value="price_asc">Ár: alacsony → magas</option>
             <option value="price_desc">Ár: magas → alacsony</option>

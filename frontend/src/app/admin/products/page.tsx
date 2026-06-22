@@ -13,6 +13,11 @@ import {
 import RichTextEditor from "@/components/RichTextEditor";
 import { sortCategoriesForDisplay } from "@/lib/category-sort";
 import { flattenCategoriesForSelect } from "@/lib/categories";
+import {
+  compareProductsBySortOrder,
+  nextProductSortOrder,
+  sortProductsForDisplay,
+} from "@/lib/product-sort";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/supabase";
 
@@ -103,7 +108,10 @@ export default function AdminProductsPage() {
   const [search, setSearch] = useState("");
   const [filterCategoryId, setFilterCategoryId] = useState("all");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
-  const [sort, setSort] = useState<"newest" | "oldest" | "price-asc" | "price-desc" | "stock-asc" | "stock-desc">("newest");
+  const [sort, setSort] = useState<
+    "custom" | "newest" | "oldest" | "price-asc" | "price-desc" | "stock-asc" | "stock-desc"
+  >("custom");
+  const [reorderBusy, setReorderBusy] = useState(false);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -116,7 +124,11 @@ export default function AdminProductsPage() {
   const loadData = useCallback(async () => {
     const [{ data: catData }, { data: prodData }] = await Promise.all([
       supabase.from("categories").select("*").order("name", { ascending: true }),
-      supabase.from("products").select("*").order("created_at", { ascending: false }),
+      supabase
+        .from("products")
+        .select("*")
+        .order("sort_order", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false }),
     ]);
     setCategories(catData ?? []);
     setProducts(prodData ?? []);
@@ -178,6 +190,7 @@ export default function AdminProductsPage() {
     if (filterStatus === "inactive") list = list.filter((p) => !p.is_active);
     list.sort((a, b) => {
       switch (sort) {
+        case "custom": return compareProductsBySortOrder(a, b);
         case "oldest": return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         case "price-asc": return Number(a.price) - Number(b.price);
         case "price-desc": return Number(b.price) - Number(a.price);
@@ -188,6 +201,45 @@ export default function AdminProductsPage() {
     });
     return list;
   }, [products, search, filterCategoryId, filterStatus, sort, categoriesById]);
+
+  const canReorder =
+    sort === "custom" &&
+    !search.trim() &&
+    filterCategoryId === "all" &&
+    filterStatus === "all" &&
+    !reorderBusy;
+
+  const orderedForReorder = useMemo(() => sortProductsForDisplay(products), [products]);
+
+  async function moveProduct(productId: string, direction: "up" | "down") {
+    if (!canReorder) return;
+    const index = orderedForReorder.findIndex((p) => p.id === productId);
+    if (index < 0) return;
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= orderedForReorder.length) return;
+
+    const current = orderedForReorder[index];
+    const neighbor = orderedForReorder[swapIndex];
+    const currentOrder = current.sort_order ?? (index + 1) * 10;
+    const neighborOrder = neighbor.sort_order ?? (swapIndex + 1) * 10;
+
+    setReorderBusy(true);
+    setActionError(null);
+    try {
+      const [a, b] = await Promise.all([
+        supabase.from("products").update({ sort_order: neighborOrder }).eq("id", current.id),
+        supabase.from("products").update({ sort_order: currentOrder }).eq("id", neighbor.id),
+      ]);
+      if (a.error || b.error) {
+        setActionError(a.error?.message ?? b.error?.message ?? "Sorrend mentése sikertelen.");
+        return;
+      }
+      setActionSuccess("Sorrend frissítve.");
+      await loadData();
+    } finally {
+      setReorderBusy(false);
+    }
+  }
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / rowsPerPage));
   const currentPage = Math.min(page, totalPages);
@@ -261,6 +313,7 @@ export default function AdminProductsPage() {
         discount_type: discountType as "percent" | "fixed" | null,
         discount_value: discountValue,
         image_url: productImageUrl || null,
+        sort_order: nextProductSortOrder(products),
         is_active: true,
       });
       if (error) { setActionError(error.message); return; }
@@ -468,6 +521,7 @@ export default function AdminProductsPage() {
             onChange={(e) => { setSort(e.target.value as typeof sort); setPage(1); }}
             className="rounded-xl border border-brand-200 px-3 py-2 text-sm outline-none transition focus:border-brand-600"
           >
+            <option value="custom">Egyéni sorrend</option>
             <option value="newest">Legújabb</option>
             <option value="oldest">Legrégebbi</option>
             <option value="price-asc">Ár: növekvő</option>
@@ -476,6 +530,11 @@ export default function AdminProductsPage() {
             <option value="stock-desc">Készlet: csökkenő</option>
           </select>
         </div>
+        {sort === "custom" && !canReorder ? (
+          <p className="mt-3 text-xs text-amber-800">
+            A sorrend állításához kapcsold ki a keresést és a szűrőket (minden kategória, minden státusz).
+          </p>
+        ) : null}
       </div>
 
       {selectedIds.length > 0 ? (
@@ -529,6 +588,9 @@ export default function AdminProductsPage() {
                     className="rounded"
                   />
                 </th>
+                {sort === "custom" ? (
+                  <th className="p-4 text-center font-bold uppercase tracking-wider text-xs text-brand-900 w-24">Sorrend</th>
+                ) : null}
                 <th className="p-4 text-left font-bold uppercase tracking-wider text-xs text-brand-900">Termék</th>
                 <th className="p-4 text-left font-bold uppercase tracking-wider text-xs text-brand-900">Kategória</th>
                 <th className="p-4 text-center font-bold uppercase tracking-wider text-xs text-brand-900">ÁFA</th>
@@ -541,12 +603,17 @@ export default function AdminProductsPage() {
             <tbody className="divide-y divide-brand-50">
               {paginatedProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-sm text-red-950/50">
+                  <td colSpan={sort === "custom" ? 9 : 8} className="p-8 text-center text-sm text-red-950/50">
                     Nincs találat a keresési feltételeknek megfelelően.
                   </td>
                 </tr>
               ) : (
-                paginatedProducts.map((product) => (
+                paginatedProducts.map((product) => {
+                  const globalIndex = orderedForReorder.findIndex((p) => p.id === product.id);
+                  const canMoveUp = canReorder && globalIndex > 0;
+                  const canMoveDown = canReorder && globalIndex >= 0 && globalIndex < orderedForReorder.length - 1;
+
+                  return (
                   <tr key={product.id} className="transition hover:bg-brand-50/30">
                     <td className="p-4">
                       <input
@@ -559,6 +626,31 @@ export default function AdminProductsPage() {
                         className="rounded"
                       />
                     </td>
+                    {sort === "custom" ? (
+                      <td className="p-4">
+                        <div className="flex flex-col items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={!canMoveUp}
+                            onClick={() => void moveProduct(product.id, "up")}
+                            className="rounded border border-brand-200 px-2 py-0.5 text-xs font-bold text-brand-900 transition hover:bg-brand-50 disabled:opacity-30"
+                            aria-label={`${product.name} feljebb`}
+                          >
+                            ↑
+                          </button>
+                          <span className="font-mono text-[10px] text-red-950/45">{product.sort_order ?? "—"}</span>
+                          <button
+                            type="button"
+                            disabled={!canMoveDown}
+                            onClick={() => void moveProduct(product.id, "down")}
+                            className="rounded border border-brand-200 px-2 py-0.5 text-xs font-bold text-brand-900 transition hover:bg-brand-50 disabled:opacity-30"
+                            aria-label={`${product.name} lejjebb`}
+                          >
+                            ↓
+                          </button>
+                        </div>
+                      </td>
+                    ) : null}
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         {product.image_url ? (
@@ -610,7 +702,8 @@ export default function AdminProductsPage() {
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

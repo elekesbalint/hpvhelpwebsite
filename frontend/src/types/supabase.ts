@@ -157,6 +157,7 @@ export type Database = {
           discount_type: "percent" | "fixed" | null;
           discount_value: number | null;
           stock: number;
+          sort_order: number | null;
           is_active: boolean;
           image_url: string | null;
           created_at: string;
@@ -177,6 +178,7 @@ export type Database = {
           discount_type?: "percent" | "fixed" | null;
           discount_value?: number | null;
           stock?: number;
+          sort_order?: number | null;
           is_active?: boolean;
           image_url?: string | null;
           created_at?: string;
@@ -196,6 +198,7 @@ export type Database = {
           discount_type?: "percent" | "fixed" | null;
           discount_value?: number | null;
           stock?: number;
+          sort_order?: number | null;
           is_active?: boolean;
           image_url?: string | null;
           updated_at?: string;
