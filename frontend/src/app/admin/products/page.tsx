@@ -112,7 +112,7 @@ export default function AdminProductsPage() {
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
   const [sort, setSort] = useState<
     "custom" | "newest" | "oldest" | "price-asc" | "price-desc" | "stock-asc" | "stock-desc"
-  >("custom");
+  >("newest");
   const [reorderBusy, setReorderBusy] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -493,6 +493,19 @@ export default function AdminProductsPage() {
     setActionSuccess("Sorrend mód: fogd meg a ⠿ ikont, és húzd a sort.");
   }
 
+  function exitReorderMode() {
+    setSort("newest");
+    setPage(1);
+    setDraggingId(null);
+    setDragOverId(null);
+    setActionSuccess("Sorrend mód kikapcsolva.");
+  }
+
+  function toggleReorderMode() {
+    if (sort === "custom") exitReorderMode();
+    else enterReorderMode();
+  }
+
   function openEdit(product: Product) {
     setEditingProduct(product);
     setEditProductName(product.name);
@@ -525,7 +538,7 @@ export default function AdminProductsPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={enterReorderMode}
+            onClick={toggleReorderMode}
             className={`btn-press flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold shadow-sm transition ${
               canReorder
                 ? "border-brand-600 bg-brand-100 text-brand-900 ring-2 ring-brand-300"
@@ -533,7 +546,7 @@ export default function AdminProductsPage() {
             }`}
           >
             <span aria-hidden>⠿</span>
-            Sorrend állítása
+            {canReorder ? "Sorrend mód bezárása" : "Sorrend állítása"}
           </button>
           <button
             onClick={() => setModal("create")}
@@ -549,8 +562,17 @@ export default function AdminProductsPage() {
       {actionSuccess ? <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm font-medium text-emerald-700">{actionSuccess}</div> : null}
 
       {canReorder ? (
-        <div className="rounded-xl border border-brand-300 bg-brand-50 px-4 py-3 text-sm text-brand-900">
-          <strong>Sorrend mód aktív.</strong> Fogd meg a bal oldali <span className="font-semibold">⠿</span> ikont, húzd a sort a kívánt helyre, majd engedd el. A webshop főoldala ezt a sorrendet követi.
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-300 bg-brand-50 px-4 py-3 text-sm text-brand-900">
+          <p>
+            <strong>Sorrend mód aktív.</strong> Fogd meg a bal oldali <span className="font-semibold">⠿</span> ikont, húzd a sort a kívánt helyre, majd engedd el. A webshop főoldala ezt a sorrendet követi.
+          </p>
+          <button
+            type="button"
+            onClick={exitReorderMode}
+            className="shrink-0 rounded-lg border border-brand-400 bg-white px-3 py-1.5 text-xs font-bold text-brand-900 transition hover:bg-brand-50"
+          >
+            Kilépés
+          </button>
         </div>
       ) : null}
 
