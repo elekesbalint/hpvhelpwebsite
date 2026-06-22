@@ -37,3 +37,18 @@ export function readCategoryFilterSlug(
   if (raw === "samm-kezelesek-es-kotroll") return CATEGORY_SLUGS.sammKezelesek;
   return raw;
 }
+
+export type AudienceFilterSlug = "noi" | "ferfi";
+
+export function readAudienceFilterSlug(
+  params: Pick<URLSearchParams, "get">,
+): AudienceFilterSlug | null {
+  const raw = (params.get("celkozonseg") ?? "").trim().toLowerCase();
+  if (raw === "noi" || raw === "ferfi") return raw;
+  return null;
+}
+
+/** Női / férfi önteszt szűrés (#termekek). */
+export function buildAudienceFilterUrl(audience: AudienceFilterSlug): string {
+  return `/?celkozonseg=${audience}#termekek`;
+}

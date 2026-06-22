@@ -19,7 +19,12 @@ import {
 } from "@/lib/categories";
 import { getProductPricing } from "@/lib/pricing";
 import { compareProductsBySortOrder } from "@/lib/product-sort";
-import { buildCategoryFilterUrl, buildProductSearchUrl, CATEGORY_SLUGS, readCategoryFilterSlug, readProductSearchQuery } from "@/lib/product-search-url";
+import {
+  audienceFilterLabel,
+  productMatchesAudienceFilter,
+  type AudienceFilter,
+} from "@/lib/product-audience-filter";
+import { buildCategoryFilterUrl, buildAudienceFilterUrl, CATEGORY_SLUGS, readAudienceFilterSlug, readCategoryFilterSlug, readProductSearchQuery } from "@/lib/product-search-url";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/supabase";
 
@@ -40,6 +45,7 @@ function HomePage() {
   const urlSearchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter | null>(null);
   const [sortBy, setSortBy] = useState<"default" | "newest" | "price_asc" | "price_desc" | "name_asc">("default");
 
   const [loading, setLoading] = useState(true);
@@ -60,19 +66,26 @@ function HomePage() {
 
   useEffect(() => {
     const categorySlug = readCategoryFilterSlug(urlSearchParams);
+    const audience = readAudienceFilterSlug(urlSearchParams);
     const query = readProductSearchQuery(urlSearchParams);
 
     if (categorySlug) {
       if (categories.length === 0) return;
       const cat = categories.find((c) => c.slug === categorySlug);
+      setAudienceFilter(null);
       setSelectedCategory(cat?.id ?? "all");
       setSearch(query);
+    } else if (audience) {
+      setAudienceFilter(audience);
+      setSelectedCategory("all");
+      setSearch("");
     } else {
+      setAudienceFilter(null);
       setSelectedCategory("all");
       setSearch(query);
     }
 
-    const hasFilter = categorySlug || query;
+    const hasFilter = categorySlug || audience || query;
     if (!hasFilter) return;
     try {
       if (localStorage.getItem(HOME_CHOOSER_STORAGE_KEY) !== "1") {
@@ -87,6 +100,7 @@ function HomePage() {
   useEffect(() => {
     const hasFilter =
       readCategoryFilterSlug(urlSearchParams) ||
+      readAudienceFilterSlug(urlSearchParams) ||
       readProductSearchQuery(urlSearchParams);
     if (!hasFilter || loading) return;
     const t = window.setTimeout(() => {
@@ -125,22 +139,24 @@ function HomePage() {
     scrollToTermekek();
   }
 
-  function filterWebshop(query: string) {
+  function filterWebshopByAudience(audience: AudienceFilter) {
     dismissHomeChooser();
+    setSortBy("default");
+    setAudienceFilter(audience);
     setSelectedCategory("all");
-    setSortBy("newest");
-    setSearch(query);
-    router.push(buildProductSearchUrl(query), { scroll: false });
+    setSearch("");
+    router.push(buildAudienceFilterUrl(audience), { scroll: false });
     scrollToTermekek();
   }
 
-  function filterWebshopByCategory(slug: string, keyword?: string) {
+  function filterWebshopByCategory(slug: string) {
     dismissHomeChooser();
-    setSortBy("newest");
+    setSortBy("default");
+    setAudienceFilter(null);
     const cat = categories.find((c) => c.slug === slug);
     setSelectedCategory(cat?.id ?? "all");
-    setSearch(keyword?.trim() ?? "");
-    router.push(buildCategoryFilterUrl(slug, keyword), { scroll: false });
+    setSearch("");
+    router.push(buildCategoryFilterUrl(slug), { scroll: false });
     scrollToTermekek();
   }
 
@@ -175,6 +191,9 @@ function HomePage() {
       selectedCategory === "all"
         ? [...products]
         : products.filter((p) => productMatchesCategoryFilter(p.category_id, selectedCategory, categories));
+    if (audienceFilter) {
+      list = list.filter((p) => productMatchesAudienceFilter(p.category_id, audienceFilter, categories));
+    }
     if (kw) {
       list = list.filter((p) => {
         const cat = p.category_id ? getCategoryBreadcrumb(categoriesById.get(p.category_id), categoriesById) : "";
@@ -187,7 +206,7 @@ function HomePage() {
     else if (sortBy === "newest") list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     else list.sort(compareProductsBySortOrder);
     return list;
-  }, [products, categories, search, selectedCategory, sortBy, categoriesById]);
+  }, [products, categories, search, selectedCategory, audienceFilter, sortBy, categoriesById]);
 
   const inStockCount = useMemo(() => filteredAndSorted.filter((p) => p.stock > 0).length, [filteredAndSorted]);
 
@@ -291,7 +310,7 @@ function HomePage() {
               <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <button
                   type="button"
-                  onClick={() => filterWebshop("nő")}
+                  onClick={() => filterWebshopByAudience("noi")}
                   className="btn-press flex flex-col items-center gap-1.5 rounded-2xl border border-brand-200 bg-brand-50/60 px-3 py-4 text-center transition hover:bg-brand-100 hover:border-brand-400"
                 >
                   <svg className="h-7 w-7 text-brand-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -304,7 +323,7 @@ function HomePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => filterWebshop("férfi")}
+                  onClick={() => filterWebshopByAudience("ferfi")}
                   className="btn-press flex flex-col items-center gap-1.5 rounded-2xl border border-brand-200 bg-brand-50/60 px-3 py-4 text-center transition hover:bg-brand-100 hover:border-brand-400"
                 >
                   <svg className="h-7 w-7 text-brand-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -327,7 +346,7 @@ function HomePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => filterWebshopByCategory(CATEGORY_SLUGS.egyeb, "PCR")}
+                  onClick={() => filterWebshopByCategory(CATEGORY_SLUGS.egyeb)}
                   className="btn-press flex flex-col items-center gap-1.5 rounded-2xl border border-brand-200 bg-white px-3 py-4 text-center transition hover:bg-brand-50 hover:border-brand-400"
                 >
                   <svg className="h-7 w-7 text-brand-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -395,20 +414,14 @@ function HomePage() {
             <div className="mt-4 flex flex-wrap items-center gap-2 md:mt-0 md:justify-end">
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedCategory("all"); setSortBy("newest"); setSearch("nő");
-                  scrollToTermekek();
-                }}
+                onClick={() => filterWebshopByAudience("noi")}
                 className="btn-press rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-xs font-bold text-brand-900 transition hover:bg-brand-100"
               >
                 Öntesztek Nőknek
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedCategory("all"); setSortBy("newest"); setSearch("férfi");
-                  scrollToTermekek();
-                }}
+                onClick={() => filterWebshopByAudience("ferfi")}
                 className="btn-press rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-xs font-bold text-brand-900 transition hover:bg-brand-100"
               >
                 Férfiaknak
@@ -429,7 +442,7 @@ function HomePage() {
               </button>
               <button
                 type="button"
-                onClick={() => filterWebshopByCategory(CATEGORY_SLUGS.egyeb, "PCR")}
+                onClick={() => filterWebshopByCategory(CATEGORY_SLUGS.egyeb)}
                 className="btn-press rounded-xl border border-brand-200 bg-white px-3 py-2 text-xs font-bold text-brand-900 transition hover:bg-brand-50"
               >
                 Egyéb DNS alapú vizsgálatok
@@ -480,7 +493,10 @@ function HomePage() {
             </svg>
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setAudienceFilter(null);
+              }}
               placeholder="Keresés..."
               className="w-full bg-transparent text-sm outline-none placeholder:text-red-950/40"
             />
@@ -489,10 +505,36 @@ function HomePage() {
             ) : null}
           </div>
 
+          {audienceFilter ? (
+            <span className="inline-flex items-center gap-2 rounded-2xl border border-brand-300 bg-brand-50 px-3 py-2 text-xs font-semibold text-brand-900">
+              {audienceFilterLabel(audienceFilter)}
+              <button
+                type="button"
+                onClick={() => {
+                  setAudienceFilter(null);
+                  router.push("/#termekek", { scroll: false });
+                }}
+                className="text-brand-700 hover:text-brand-900"
+                aria-label="Célcsoport szűrő törlése"
+              >
+                ✕
+              </button>
+            </span>
+          ) : null}
+
           {/* Category filter */}
           <select
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value);
+              setAudienceFilter(null);
+              if (e.target.value === "all") {
+                router.push("/#termekek", { scroll: false });
+              } else {
+                const cat = categoriesById.get(e.target.value);
+                if (cat) router.push(buildCategoryFilterUrl(cat.slug), { scroll: false });
+              }
+            }}
             className="rounded-2xl border border-brand-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition hover:border-brand-500 cursor-pointer"
           >
             <option value="all">Összes kategória</option>
@@ -650,7 +692,13 @@ function HomePage() {
             <p className="text-base font-bold text-slate-900">Nincs találat.</p>
             <p className="mt-1 text-sm text-red-950/60">Próbálj más keresési kifejezést vagy kategóriát.</p>
             <button
-              onClick={() => { setSearch(""); setSelectedCategory("all"); setSortBy("newest"); }}
+              onClick={() => {
+                setSearch("");
+                setSelectedCategory("all");
+                setAudienceFilter(null);
+                setSortBy("default");
+                router.push("/#termekek", { scroll: false });
+              }}
               className="mt-5 rounded-xl border border-brand-200 px-5 py-2.5 text-sm font-semibold text-brand-900 transition hover:bg-brand-50"
             >
               Szűrők visszaállítása
