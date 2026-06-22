@@ -483,6 +483,16 @@ export default function AdminProductsPage() {
     await loadData();
   }
 
+  function enterReorderMode() {
+    setSort("custom");
+    setSearch("");
+    setFilterCategoryId("all");
+    setFilterStatus("all");
+    setPage(1);
+    setSelectedIds([]);
+    setActionSuccess("Sorrend mód: fogd meg a ⠿ ikont, és húzd a sort.");
+  }
+
   function openEdit(product: Product) {
     setEditingProduct(product);
     setEditProductName(product.name);
@@ -512,17 +522,37 @@ export default function AdminProductsPage() {
           <p className="text-xs font-bold uppercase tracking-widest text-brand-700">Admin</p>
           <h1 className="mt-1 text-2xl font-bold text-slate-900">Termékek kezelése</h1>
         </div>
-        <button
-          onClick={() => setModal("create")}
-          className="btn-press flex items-center gap-2 rounded-xl bg-brand-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-800"
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14m-7-7h14" /></svg>
-          Új termék
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={enterReorderMode}
+            className={`btn-press flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold shadow-sm transition ${
+              canReorder
+                ? "border-brand-600 bg-brand-100 text-brand-900 ring-2 ring-brand-300"
+                : "border-brand-300 bg-white text-brand-900 hover:bg-brand-50"
+            }`}
+          >
+            <span aria-hidden>⠿</span>
+            Sorrend állítása
+          </button>
+          <button
+            onClick={() => setModal("create")}
+            className="btn-press flex items-center gap-2 rounded-xl bg-brand-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-800"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14m-7-7h14" /></svg>
+            Új termék
+          </button>
+        </div>
       </div>
 
       {actionError ? <div className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm font-medium text-rose-700">{actionError}</div> : null}
       {actionSuccess ? <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm font-medium text-emerald-700">{actionSuccess}</div> : null}
+
+      {canReorder ? (
+        <div className="rounded-xl border border-brand-300 bg-brand-50 px-4 py-3 text-sm text-brand-900">
+          <strong>Sorrend mód aktív.</strong> Fogd meg a bal oldali <span className="font-semibold">⠿</span> ikont, húzd a sort a kívánt helyre, majd engedd el. A webshop főoldala ezt a sorrendet követi.
+        </div>
+      ) : null}
 
       <div className="rounded-2xl border border-brand-100 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap gap-3">
@@ -557,7 +587,7 @@ export default function AdminProductsPage() {
             onChange={(e) => { setSort(e.target.value as typeof sort); setPage(1); }}
             className="rounded-xl border border-brand-200 px-3 py-2 text-sm outline-none transition focus:border-brand-600"
           >
-            <option value="custom">Egyéni sorrend</option>
+            <option value="custom">Egyéni sorrend (húzható)</option>
             <option value="newest">Legújabb</option>
             <option value="oldest">Legrégebbi</option>
             <option value="price-asc">Ár: növekvő</option>
