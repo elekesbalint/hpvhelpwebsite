@@ -363,6 +363,11 @@ export default function AdminOrdersPage() {
           <p className="break-all font-mono text-[11px] text-slate-800">
             /api/integrations/naturasoft/orders?token=…
           </p>
+          <p className="text-[11px] text-amber-800">
+            Újra-import (már exportált rendelések is, a NaturaSoft gyakran nem küldi az URL paramétereket):
+            {" "}
+            <span className="font-mono">/api/integrations/naturasoft/reexport?token=…</span>
+          </p>
           <div className="flex flex-wrap gap-2 pt-1">
             <button
               type="button"
