@@ -4,16 +4,26 @@
 import {
   ChangeEvent,
   FormEvent,
+  type WheelEvent,
   useCallback,
   useEffect,
   useMemo,
   useState,
 } from "react";
+import RichTextEditor from "@/components/RichTextEditor";
+import { sortCategoriesForDisplay } from "@/lib/category-sort";
+import { flattenCategoriesForSelect } from "@/lib/categories";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/supabase";
 
 type Category = Database["public"]["Tables"]["categories"]["Row"];
 type Product = Database["public"]["Tables"]["products"]["Row"];
+
+/** Megakadályozza, hogy touchpad görgetés a szám mező értékét léptesse (böngésző alapértelmezés). */
+function blurNumberInputOnWheel(e: WheelEvent<HTMLInputElement>) {
+  e.preventDefault();
+  e.currentTarget.blur();
+}
 
 function slugify(value: string): string {
   return value
@@ -25,7 +35,26 @@ function slugify(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-const PRODUCTS_PER_PAGE = 12;
+function toLocalDatetime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function parseLocalDatetime(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const d = new Date(trimmed);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function validateSalePeriod(startsAt: string | null, endsAt: string | null): string | null {
+  if (startsAt && endsAt && new Date(startsAt) >= new Date(endsAt)) {
+    return "A leárazás kezdete korábban kell legyen, mint a vége.";
+  }
+  return null;
+}
 
 type Modal = "create" | "edit" | null;
 
@@ -40,8 +69,14 @@ export default function AdminProductsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [productName, setProductName] = useState("");
+  const [productSku, setProductSku] = useState("");
   const [productDescription, setProductDescription] = useState("");
   const [productPrice, setProductPrice] = useState("0");
+  const [productCompareAtPrice, setProductCompareAtPrice] = useState("");
+  const [productSaleStartsAt, setProductSaleStartsAt] = useState("");
+  const [productSaleEndsAt, setProductSaleEndsAt] = useState("");
+  const [productDiscountType, setProductDiscountType] = useState<"" | "percent" | "fixed">("");
+  const [productDiscountValue, setProductDiscountValue] = useState("");
   const [productStock, setProductStock] = useState("0");
   const [productCategoryId, setProductCategoryId] = useState<string>("");
   const [productVatMode, setProductVatMode] = useState<"inherit" | "custom">("inherit");
@@ -51,8 +86,14 @@ export default function AdminProductsPage() {
 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editProductName, setEditProductName] = useState("");
+  const [editProductSku, setEditProductSku] = useState("");
   const [editProductDescription, setEditProductDescription] = useState("");
   const [editProductPrice, setEditProductPrice] = useState("0");
+  const [editProductCompareAtPrice, setEditProductCompareAtPrice] = useState("");
+  const [editProductSaleStartsAt, setEditProductSaleStartsAt] = useState("");
+  const [editProductSaleEndsAt, setEditProductSaleEndsAt] = useState("");
+  const [editProductDiscountType, setEditProductDiscountType] = useState<"" | "percent" | "fixed">("");
+  const [editProductDiscountValue, setEditProductDiscountValue] = useState("");
   const [editProductStock, setEditProductStock] = useState("0");
   const [editProductCategoryId, setEditProductCategoryId] = useState("");
   const [editVatMode, setEditVatMode] = useState<"inherit" | "custom">("inherit");
@@ -64,10 +105,13 @@ export default function AdminProductsPage() {
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
   const [sort, setSort] = useState<"newest" | "oldest" | "price-asc" | "price-desc" | "stock-asc" | "stock-desc">("newest");
   const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const productSlug = useMemo(() => slugify(productName), [productName]);
   const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+  const sortedCategories = useMemo(() => sortCategoriesForDisplay(categories), [categories]);
+  const categorySelectOptions = useMemo(() => flattenCategoriesForSelect(categories), [categories]);
 
   const loadData = useCallback(async () => {
     const [{ data: catData }, { data: prodData }] = await Promise.all([
@@ -84,6 +128,18 @@ export default function AdminProductsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (!actionError) return;
+    const timeout = window.setTimeout(() => setActionError(null), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [actionError]);
+
+  useEffect(() => {
+    if (!actionSuccess) return;
+    const timeout = window.setTimeout(() => setActionSuccess(null), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [actionSuccess]);
 
   useEffect(() => {
     if (!modal) return;
@@ -109,6 +165,7 @@ export default function AdminProductsPage() {
         const cat = p.category_id ? categoriesById.get(p.category_id)?.name ?? "" : "";
         return (
           p.name.toLowerCase().includes(keyword) ||
+          (p.sku ?? "").toLowerCase().includes(keyword) ||
           cat.toLowerCase().includes(keyword) ||
           (p.description ?? "").toLowerCase().includes(keyword)
         );
@@ -132,11 +189,11 @@ export default function AdminProductsPage() {
     return list;
   }, [products, search, filterCategoryId, filterStatus, sort, categoriesById]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / rowsPerPage));
   const currentPage = Math.min(page, totalPages);
   const paginatedProducts = filteredProducts.slice(
-    (currentPage - 1) * PRODUCTS_PER_PAGE,
-    currentPage * PRODUCTS_PER_PAGE
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
   );
 
   async function uploadProductImage(file: File): Promise<string | null> {
@@ -172,6 +229,11 @@ export default function AdminProductsPage() {
     const price = Number(productPrice);
     const stock = Number(productStock);
     const vatRate = productVatMode === "inherit" ? null : Number(productVatRate);
+    const compareAtPrice = productCompareAtPrice.trim() ? Number(productCompareAtPrice) : null;
+    const saleStartsAt = parseLocalDatetime(productSaleStartsAt);
+    const saleEndsAt = parseLocalDatetime(productSaleEndsAt);
+    const discountType = productDiscountType || null;
+    const discountValue = productDiscountValue.trim() ? Number(productDiscountValue) : null;
     if (!name) { setActionError("A termék neve kötelező."); return; }
     if (Number.isNaN(price) || price < 0) { setActionError("Az ár érvénytelen."); return; }
     if (!Number.isInteger(stock) || stock < 0) { setActionError("A készlet érvénytelen."); return; }
@@ -179,19 +241,32 @@ export default function AdminProductsPage() {
       setActionError("Az egyedi ÁFA mértékének 0 és 100 között kell lennie.");
       return;
     }
+    if (compareAtPrice != null && compareAtPrice <= price) {
+      setActionError("A leárazás előtti ár nagyobb kell legyen, mint az aktuális ár.");
+      return;
+    }
+    const salePeriodError = validateSalePeriod(saleStartsAt, saleEndsAt);
+    if (salePeriodError) { setActionError(salePeriodError); return; }
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
       const { error } = await supabase.from("products").insert({
-        name, slug: productSlug, price, stock,
+        name, slug: productSlug, sku: productSku.trim() || null, price, stock,
         description: productDescription || null,
         category_id: productCategoryId || null,
         vat_rate: vatRate,
+        compare_at_price: compareAtPrice,
+        sale_starts_at: saleStartsAt,
+        sale_ends_at: saleEndsAt,
+        discount_type: discountType as "percent" | "fixed" | null,
+        discount_value: discountValue,
         image_url: productImageUrl || null,
         is_active: true,
       });
       if (error) { setActionError(error.message); return; }
-      setProductName(""); setProductDescription(""); setProductPrice("0");
+      setProductName(""); setProductSku(""); setProductDescription(""); setProductPrice("0");
+      setProductCompareAtPrice(""); setProductSaleStartsAt(""); setProductSaleEndsAt("");
+      setProductDiscountType(""); setProductDiscountValue("");
       setProductStock("0"); setProductCategoryId("");
       setProductVatMode("inherit"); setProductVatRate("");
       setProductImageUrl("");
@@ -211,6 +286,11 @@ export default function AdminProductsPage() {
     const price = Number(editProductPrice);
     const stock = Number(editProductStock);
     const vatRate = editVatMode === "inherit" ? null : Number(editVatRate);
+    const compareAtPrice = editProductCompareAtPrice.trim() ? Number(editProductCompareAtPrice) : null;
+    const saleStartsAt = parseLocalDatetime(editProductSaleStartsAt);
+    const saleEndsAt = parseLocalDatetime(editProductSaleEndsAt);
+    const discountType = editProductDiscountType || null;
+    const discountValue = editProductDiscountValue.trim() ? Number(editProductDiscountValue) : null;
     if (!name) { setActionError("A termék neve kötelező."); return; }
     if (Number.isNaN(price) || price < 0) { setActionError("Az ár érvénytelen."); return; }
     if (!Number.isInteger(stock) || stock < 0) { setActionError("A készlet érvénytelen."); return; }
@@ -218,14 +298,25 @@ export default function AdminProductsPage() {
       setActionError("Az egyedi ÁFA mértékének 0 és 100 között kell lennie.");
       return;
     }
+    if (compareAtPrice != null && compareAtPrice <= price) {
+      setActionError("A leárazás előtti ár nagyobb kell legyen, mint az aktuális ár.");
+      return;
+    }
+    const salePeriodError = validateSalePeriod(saleStartsAt, saleEndsAt);
+    if (salePeriodError) { setActionError(salePeriodError); return; }
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
       const { error } = await supabase.from("products").update({
-        name, slug: slugify(name), price, stock,
+        name, slug: slugify(name), sku: editProductSku.trim() || null, price, stock,
         description: editProductDescription || null,
         category_id: editProductCategoryId || null,
         vat_rate: vatRate,
+        compare_at_price: compareAtPrice,
+        sale_starts_at: saleStartsAt,
+        sale_ends_at: saleEndsAt,
+        discount_type: discountType as "percent" | "fixed" | null,
+        discount_value: discountValue,
         image_url: editProductImageUrl || null,
       }).eq("id", editingProduct.id);
       if (error) { setActionError(error.message); return; }
@@ -243,8 +334,18 @@ export default function AdminProductsPage() {
     setEditingProduct(null);
     setProductVatMode("inherit");
     setProductVatRate("");
+    setProductCompareAtPrice("");
+    setProductSaleStartsAt("");
+    setProductSaleEndsAt("");
+    setProductDiscountType("");
+    setProductDiscountValue("");
     setEditVatMode("inherit");
     setEditVatRate("");
+    setEditProductCompareAtPrice("");
+    setEditProductSaleStartsAt("");
+    setEditProductSaleEndsAt("");
+    setEditProductDiscountType("");
+    setEditProductDiscountValue("");
     setActionError(null);
   }
 
@@ -282,11 +383,28 @@ export default function AdminProductsPage() {
     await loadData();
   }
 
+  async function handleBulkDelete() {
+    if (selectedIds.length === 0) { setActionError("Válassz ki legalább egy terméket."); return; }
+    const confirmed = window.confirm(`Biztosan törlöd a kiválasztott ${selectedIds.length} terméket?`);
+    if (!confirmed) return;
+    const { error } = await supabase.from("products").delete().in("id", selectedIds);
+    if (error) { setActionError(error.message); return; }
+    setActionSuccess(`${selectedIds.length} termék törölve.`);
+    setSelectedIds([]);
+    await loadData();
+  }
+
   function openEdit(product: Product) {
     setEditingProduct(product);
     setEditProductName(product.name);
+    setEditProductSku(product.sku ?? "");
     setEditProductDescription(product.description ?? "");
     setEditProductPrice(String(product.price));
+    setEditProductCompareAtPrice(product.compare_at_price != null ? String(product.compare_at_price) : "");
+    setEditProductSaleStartsAt(toLocalDatetime(product.sale_starts_at));
+    setEditProductSaleEndsAt(toLocalDatetime(product.sale_ends_at));
+    setEditProductDiscountType((product.discount_type as "" | "percent" | "fixed") ?? "");
+    setEditProductDiscountValue(product.discount_value != null ? String(product.discount_value) : "");
     setEditProductStock(String(product.stock));
     setEditProductCategoryId(product.category_id ?? "");
     setEditVatMode(product.vat_rate == null ? "inherit" : "custom");
@@ -324,7 +442,7 @@ export default function AdminProductsPage() {
             <input
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Keresés termék neve, leírás vagy kategória alapján..."
+              placeholder="Keresés név, cikkszám, leírás vagy kategória alapján..."
               className="w-full bg-transparent text-sm outline-none placeholder:text-red-950/40"
             />
           </div>
@@ -334,7 +452,7 @@ export default function AdminProductsPage() {
             className="rounded-xl border border-brand-200 px-3 py-2 text-sm outline-none transition focus:border-brand-600"
           >
             <option value="all">Minden kategória</option>
-            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {categorySelectOptions.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
           <select
             value={filterStatus}
@@ -365,9 +483,31 @@ export default function AdminProductsPage() {
           <p className="text-sm font-semibold text-red-950">{selectedIds.length} termék kiválasztva</p>
           <button onClick={() => void handleBulkSetActive(true)} className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50">Aktiválás</button>
           <button onClick={() => void handleBulkSetActive(false)} className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 transition hover:bg-rose-50">Inaktiválás</button>
+          <button onClick={() => void handleBulkDelete()} className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 transition hover:bg-rose-50">Törlés</button>
           <button onClick={() => setSelectedIds([])} className="ml-auto rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-900 transition hover:bg-white">Kijelölés törlése</button>
         </div>
       ) : null}
+
+      <div className="flex items-center justify-between rounded-2xl border border-brand-100 bg-white px-4 py-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3 text-sm text-red-950/70">
+          <p>Sor / oldal</p>
+          <select
+            value={rowsPerPage}
+            onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }}
+            className="rounded-lg border border-brand-200 px-2.5 py-1 text-sm outline-none transition focus:border-brand-600"
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+          </select>
+          <p>Összesen {filteredProducts.length} termék</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="rounded-lg border border-brand-200 px-3 py-1.5 text-sm font-semibold text-brand-900 transition hover:bg-brand-50 disabled:opacity-40">Előző</button>
+          <p className="text-sm font-semibold text-red-950/70">{currentPage}/{totalPages}</p>
+          <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="rounded-lg border border-brand-200 px-3 py-1.5 text-sm font-semibold text-brand-900 transition hover:bg-brand-50 disabled:opacity-40">Következő</button>
+        </div>
+      </div>
 
       <div className="rounded-2xl border border-brand-100 bg-white shadow-sm overflow-hidden">
         {loading ? (
@@ -429,6 +569,9 @@ export default function AdminProductsPage() {
                         <div>
                           <p className="font-semibold text-slate-900">{product.name}</p>
                           <p className="text-xs text-red-950/50 font-mono">{product.slug}</p>
+                          {product.sku ? (
+                            <p className="text-xs text-brand-800">Cikkszám: {product.sku}</p>
+                          ) : null}
                         </div>
                       </div>
                     </td>
@@ -474,26 +617,11 @@ export default function AdminProductsPage() {
         )}
       </div>
 
-      {totalPages > 1 ? (
-        <div className="flex items-center justify-between rounded-2xl border border-brand-100 bg-white px-4 py-3 shadow-sm">
-          <p className="text-sm text-red-950/60">
-            {(currentPage - 1) * PRODUCTS_PER_PAGE + 1}–{Math.min(currentPage * PRODUCTS_PER_PAGE, filteredProducts.length)} / {filteredProducts.length} termék
-          </p>
-          <div className="flex gap-2">
-            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="rounded-lg border border-brand-200 px-3 py-1.5 text-sm font-semibold text-brand-900 transition hover:bg-brand-50 disabled:opacity-40">Előző</button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button key={p} onClick={() => setPage(p)} className={`h-8 w-8 rounded-lg border text-xs font-bold transition ${p === currentPage ? "border-brand-700 bg-brand-900 text-white" : "border-brand-200 text-brand-900 hover:bg-brand-50"}`}>{p}</button>
-            ))}
-            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="rounded-lg border border-brand-200 px-3 py-1.5 text-sm font-semibold text-brand-900 transition hover:bg-brand-50 disabled:opacity-40">Következő</button>
-          </div>
-        </div>
-      ) : null}
-
       {modal ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-sm" onClick={closeModal}>
           <div className="flex min-h-full items-center justify-center p-4">
             <div
-              className="w-full max-w-lg rounded-2xl bg-white shadow-2xl"
+              className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between border-b border-brand-100 px-6 py-4">
@@ -525,12 +653,23 @@ export default function AdminProductsPage() {
                   </div>
 
                   <div>
+                    <label className={labelCls}>Cikkszám (SKU)</label>
+                    <input
+                      type="text"
+                      value={modal === "create" ? productSku : editProductSku}
+                      onChange={(e) => modal === "create" ? setProductSku(e.target.value) : setEditProductSku(e.target.value)}
+                      placeholder="pl. ZNS001"
+                      className={inputCls}
+                    />
+                  </div>
+
+                  <div>
                     <label className={labelCls}>Leírás</label>
-                    <textarea
-                      rows={3}
+                    <RichTextEditor
                       value={modal === "create" ? productDescription : editProductDescription}
-                      onChange={(e) => modal === "create" ? setProductDescription(e.target.value) : setEditProductDescription(e.target.value)}
-                      className={`${inputCls} resize-none`}
+                      onChange={(html) => modal === "create" ? setProductDescription(html) : setEditProductDescription(html)}
+                      placeholder="Termék leírása, jellemzők, összetevők…"
+                      minHeight={220}
                     />
                   </div>
 
@@ -544,6 +683,7 @@ export default function AdminProductsPage() {
                         required
                         value={modal === "create" ? productPrice : editProductPrice}
                         onChange={(e) => modal === "create" ? setProductPrice(e.target.value) : setEditProductPrice(e.target.value)}
+                        onWheel={blurNumberInputOnWheel}
                         className={inputCls}
                       />
                     </div>
@@ -556,9 +696,85 @@ export default function AdminProductsPage() {
                         required
                         value={modal === "create" ? productStock : editProductStock}
                         onChange={(e) => modal === "create" ? setProductStock(e.target.value) : setEditProductStock(e.target.value)}
+                        onWheel={blurNumberInputOnWheel}
                         className={inputCls}
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Leárazás előtti ár (Ft) – opcionális</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="pl. 15 000 (ha ez van beállítva, az ár lesz az akciós ár)"
+                      value={modal === "create" ? productCompareAtPrice : editProductCompareAtPrice}
+                      onChange={(e) => modal === "create" ? setProductCompareAtPrice(e.target.value) : setEditProductCompareAtPrice(e.target.value)}
+                      onWheel={blurNumberInputOnWheel}
+                      className={inputCls}
+                    />
+                    <p className="mt-1 text-xs text-red-950/50">Ha be van állítva, az eredeti ár áthúzva jelenik meg, az ár az akciós ár. Leárazott termékre kupon nem érvényesíthető.</p>
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Leárazás / kedvezmény időszaka – opcionális</label>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-xs text-red-950/60">Mettől</label>
+                        <input
+                          type="datetime-local"
+                          value={modal === "create" ? productSaleStartsAt : editProductSaleStartsAt}
+                          onChange={(e) => modal === "create" ? setProductSaleStartsAt(e.target.value) : setEditProductSaleStartsAt(e.target.value)}
+                          className={inputCls}
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-red-950/60">Meddig</label>
+                        <input
+                          type="datetime-local"
+                          value={modal === "create" ? productSaleEndsAt : editProductSaleEndsAt}
+                          onChange={(e) => modal === "create" ? setProductSaleEndsAt(e.target.value) : setEditProductSaleEndsAt(e.target.value)}
+                          className={inputCls}
+                        />
+                      </div>
+                    </div>
+                    <p className="mt-1 text-xs text-red-950/50">
+                      A leárazás előtti árra és a termék szintű kedvezményre vonatkozik. Üresen hagyva nincs időkorlát.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Kedvezmény beállítása – opcionális</label>
+                    <div className="grid grid-cols-2 gap-3 rounded-xl border border-brand-200 p-3">
+                      <div>
+                        <label className="mb-1 block text-xs text-red-950/60">Kedvezmény típusa</label>
+                        <select
+                          value={modal === "create" ? productDiscountType : editProductDiscountType}
+                          onChange={(e) => modal === "create" ? setProductDiscountType(e.target.value as "" | "percent" | "fixed") : setEditProductDiscountType(e.target.value as "" | "percent" | "fixed")}
+                          className={inputCls}
+                        >
+                          <option value="">Nincs kedvezmény</option>
+                          <option value="percent">Százalékos (%)</option>
+                          <option value="fixed">Fix összeg (Ft)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-red-950/60">Kedvezmény értéke</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder={(modal === "create" ? productDiscountType : editProductDiscountType) === "percent" ? "pl. 10" : "pl. 500"}
+                          disabled={!(modal === "create" ? productDiscountType : editProductDiscountType)}
+                          value={modal === "create" ? productDiscountValue : editProductDiscountValue}
+                          onChange={(e) => modal === "create" ? setProductDiscountValue(e.target.value) : setEditProductDiscountValue(e.target.value)}
+                          onWheel={blurNumberInputOnWheel}
+                          className={`${inputCls} disabled:opacity-40`}
+                        />
+                      </div>
+                    </div>
+                    <p className="mt-1 text-xs text-red-950/50">Termékszintű kedvezmény felülírja a kategóriaszintűt.</p>
                   </div>
 
                   <div>
@@ -569,7 +785,7 @@ export default function AdminProductsPage() {
                       className={inputCls}
                     >
                       <option value="">Válasszon kategóriát</option>
-                      {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      {categorySelectOptions.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
                     </select>
                   </div>
 
@@ -602,6 +818,7 @@ export default function AdminProductsPage() {
                           step="0.01"
                           value={modal === "create" ? productVatRate : editVatRate}
                           onChange={(e) => modal === "create" ? setProductVatRate(e.target.value) : setEditVatRate(e.target.value)}
+                          onWheel={blurNumberInputOnWheel}
                           placeholder="pl. 27"
                           className={inputCls}
                         />

@@ -3,14 +3,44 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { setCartItems } from "@/lib/cart";
+import { useEffect, useMemo, useState } from "react";
+import { getSampleTargetLabel } from "@/lib/checkout-config";
+import { getCartQuantityForProduct, setCartItems, syncCartStock } from "@/lib/cart";
 import { useCart } from "@/hooks/useCart";
 import { supabase } from "@/lib/supabase";
+import GuestCheckoutNotice from "@/components/GuestCheckoutNotice";
+import SiteLogo from "@/components/SiteLogo";
 
 export default function CartPage() {
   const router = useRouter();
   const { items, subtotal, updateCartQuantity, removeFromCart } = useCart();
+  const [stockNotice, setStockNotice] = useState<string | null>(null);
+
+  const productIdsKey = useMemo(
+    () => [...new Set(items.map((item) => item.productId))].sort().join(","),
+    [items]
+  );
+
+  useEffect(() => {
+    if (!productIdsKey) {
+      setStockNotice(null);
+      return;
+    }
+    const ids = productIdsKey.split(",");
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase.from("products").select("id, stock").in("id", ids);
+      if (cancelled || !data) return;
+      const stockByProductId = Object.fromEntries(data.map((p) => [p.id, p.stock]));
+      const changed = syncCartStock(stockByProductId);
+      if (changed) {
+        setStockNotice("A kosár mennyiségeit a rendelkezésre álló készlethez igazítottuk.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [productIdsKey]);
 
   useEffect(() => {
     const missing = items.filter((i) => i.imageUrl === undefined);
@@ -34,8 +64,7 @@ export default function CartPage() {
     };
   }, [items]);
 
-  const shipping = 0;
-  const total = subtotal + shipping;
+  const total = subtotal;
 
   return (
     <div className="min-h-screen bg-[#fdf8f8] text-slate-900">
@@ -50,10 +79,7 @@ export default function CartPage() {
             </svg>
             Vissza a webshopba
           </Link>
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-brand-900 to-brand-700 shadow-sm" />
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-900">HPVHelp Webshop</p>
-          </div>
+          <SiteLogo withLink={false} size="md" />
         </div>
       </header>
 
@@ -64,6 +90,14 @@ export default function CartPage() {
             Kosár {items.length > 0 ? <span className="text-brand-800">({items.length})</span> : null}
           </h1>
         </div>
+
+        <GuestCheckoutNotice className="mb-6" />
+
+        {stockNotice ? (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {stockNotice}
+          </div>
+        ) : null}
 
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-3xl border border-brand-100 bg-white py-20 text-center shadow-sm">
@@ -86,9 +120,18 @@ export default function CartPage() {
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Cart items */}
             <div className="lg:col-span-2 space-y-3">
-              {items.map((item) => (
+              {items.map((item) => {
+                const otherLinesQty =
+                  getCartQuantityForProduct(items, item.productId) - item.quantity;
+                const maxForLine =
+                  item.maxStock != null
+                    ? Math.max(0, item.maxStock - otherLinesQty)
+                    : Number.POSITIVE_INFINITY;
+                const atMax = item.quantity >= maxForLine;
+
+                return (
                 <div
-                  key={item.productId}
+                  key={`${item.productId}-${item.sampleTarget ?? "default"}`}
                   className="flex flex-wrap items-center gap-4 rounded-2xl border border-brand-100 bg-white p-4 shadow-sm transition hover:border-brand-200"
                 >
                   <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-brand-100 bg-gradient-to-br from-brand-50 to-brand-100">
@@ -99,6 +142,9 @@ export default function CartPage() {
 
                   <div className="flex-1 min-w-0">
                     <p className="truncate font-bold text-slate-900">{item.name}</p>
+                    {item.sampleTarget ? (
+                      <p className="text-xs text-brand-700">{getSampleTargetLabel(item.sampleTarget)}</p>
+                    ) : null}
                     <p className="text-sm font-semibold text-brand-800">
                       {Number(item.price).toLocaleString("hu-HU")} Ft / db
                     </p>
@@ -107,15 +153,31 @@ export default function CartPage() {
                   <div className="flex items-center gap-3">
                     <div className="flex items-center overflow-hidden rounded-xl border border-brand-200 bg-white">
                       <button
-                        onClick={() => updateCartQuantity(item.productId, Math.max(1, item.quantity - 1))}
+                        onClick={() => updateCartQuantity(item.productId, Math.max(1, item.quantity - 1), item.sampleTarget, item.maxStock)}
                         className="px-3 py-2 text-sm font-bold text-brand-900 transition hover:bg-brand-50"
                       >−</button>
                       <span className="w-8 text-center text-sm font-bold text-slate-900">{item.quantity}</span>
                       <button
-                        onClick={() => updateCartQuantity(item.productId, item.quantity + 1)}
-                        className="px-3 py-2 text-sm font-bold text-brand-900 transition hover:bg-brand-50"
+                        onClick={() => {
+                          const result = updateCartQuantity(
+                            item.productId,
+                            item.quantity + 1,
+                            item.sampleTarget,
+                            item.maxStock
+                          );
+                          if (result.limitedByStock && item.maxStock != null) {
+                            setStockNotice(
+                              `"${item.name}" esetén maximum ${item.maxStock} db rendelhető.`
+                            );
+                          }
+                        }}
+                        disabled={atMax}
+                        className="px-3 py-2 text-sm font-bold text-brand-900 transition hover:bg-brand-50 disabled:cursor-not-allowed disabled:text-slate-300"
                       >+</button>
                     </div>
+                    {item.maxStock != null && atMax ? (
+                      <p className="w-full text-xs text-amber-700 sm:w-auto">Max. {item.maxStock} db</p>
+                    ) : null}
 
                     <p className="w-24 text-right text-base font-bold text-brand-900">
                       {(item.price * item.quantity).toLocaleString("hu-HU")} Ft
@@ -123,7 +185,7 @@ export default function CartPage() {
 
 
                     <button
-                      onClick={() => removeFromCart(item.productId)}
+                      onClick={() => removeFromCart(item.productId, item.sampleTarget)}
                       className="rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
                     >
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -132,7 +194,8 @@ export default function CartPage() {
                     </button>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
 
             {/* Summary */}
@@ -146,14 +209,14 @@ export default function CartPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-red-950/60">Szállítás</span>
-                  <span className="font-semibold text-emerald-600">{shipping === 0 ? "Ingyenes" : `${Number(shipping).toLocaleString("hu-HU")} Ft`}</span>
+                  <span className="font-semibold text-red-950/70">A fizetésnél választható</span>
                 </div>
               </div>
 
               <div className="my-4 border-t border-brand-100" />
 
               <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-slate-900">Végösszeg</span>
+                <span className="text-sm font-bold text-slate-900">Végösszeg (szállítás nélkül)</span>
                 <span className="text-xl font-bold text-brand-900">{total.toLocaleString("hu-HU")} Ft</span>
               </div>
 
@@ -168,7 +231,15 @@ export default function CartPage() {
                 </svg>
               </button>
 
-              <p className="mt-3 text-center text-xs text-red-950/40">
+              <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-brand-100 bg-brand-50/40 px-4 py-3">
+                <p className="text-center text-xs font-semibold text-red-950/60">Fizetési mód</p>
+                <img
+                  src="/simplepay-by-otp.png"
+                  alt="SimplePay by OTP Mobile"
+                  className="h-8 w-auto max-w-[220px] object-contain"
+                />
+              </div>
+              <p className="mt-2 text-center text-xs text-red-950/40">
                 Biztonságos fizetés · SSL titkosítás
               </p>
             </div>

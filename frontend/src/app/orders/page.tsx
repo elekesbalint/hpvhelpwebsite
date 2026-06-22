@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { formatOrderPublicId } from "@/lib/order-display-id";
 import { supabase } from "@/lib/supabase";
+import SiteLogo from "@/components/SiteLogo";
 import type { Database } from "@/types/supabase";
 
 type Order = Database["public"]["Tables"]["orders"]["Row"];
@@ -56,10 +58,7 @@ export default function OrdersPage() {
             </svg>
             Vissza a fiókhoz
           </Link>
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-brand-900 to-brand-700 shadow-sm" />
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-900">HPVHelp Webshop</p>
-          </div>
+          <SiteLogo withLink={false} size="md" />
         </div>
       </header>
 
@@ -114,7 +113,7 @@ export default function OrdersPage() {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className="font-mono text-xs text-slate-400">#{order.id.slice(0, 8)}…</p>
+                      <p className="font-mono text-xs text-slate-400" title={order.id}>{formatOrderPublicId(order.id)}</p>
                       <p className="mt-0.5 text-sm font-semibold text-slate-900">
                         {new Date(order.created_at).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })}
                       </p>

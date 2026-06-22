@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { getEnabledPaymentMethods, type PaymentMethod } from "@/lib/checkout-config";
+import { formatOrderPublicId } from "@/lib/order-display-id";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/supabase";
 
@@ -28,6 +30,7 @@ export default function AdminDashboardPage() {
   const [statsRange, setStatsRange] = useState<"today" | "7d" | "30d">("7d");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+  const [enabledPaymentMethods, setEnabledPaymentMethodsState] = useState<PaymentMethod[]>(["card"]);
 
   useEffect(() => {
     void Promise.all([
@@ -35,11 +38,12 @@ export default function AdminDashboardPage() {
       supabase.from("products").select("*"),
       supabase.from("categories").select("*"),
       supabase.from("app_settings").select("value").eq("key", "maintenance_mode").maybeSingle(),
-    ]).then(([ordersResult, productsResult, categoriesResult, settingsResult]) => {
+    ]).then(async ([ordersResult, productsResult, categoriesResult, settingsResult]) => {
       setOrders(ordersResult.data ?? []);
       setProducts(productsResult.data ?? []);
       setCategories(categoriesResult.data ?? []);
       setMaintenanceMode(settingsResult.data?.value === true);
+      setEnabledPaymentMethodsState(await getEnabledPaymentMethods());
       setLoading(false);
     });
   }, []);
@@ -109,7 +113,8 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Karbantartás mód toggle */}
-        <div className={`flex items-center gap-4 rounded-2xl border px-5 py-4 shadow-sm transition ${maintenanceMode ? "border-amber-200 bg-amber-50" : "border-brand-100 bg-white"}`}>
+        <div className="space-y-3">
+          <div className={`flex items-center gap-4 rounded-2xl border px-5 py-4 shadow-sm transition ${maintenanceMode ? "border-amber-200 bg-amber-50" : "border-brand-100 bg-white"}`}>
           <div>
             <p className="text-sm font-bold text-slate-900">Karbantartás mód</p>
             <p className="text-xs text-red-950/60">
@@ -139,6 +144,37 @@ export default function AdminDashboardPage() {
           >
             <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${maintenanceMode ? "translate-x-6" : "translate-x-1"}`} />
           </button>
+          </div>
+
+          <div className="rounded-2xl border border-brand-100 bg-white px-5 py-4 shadow-sm">
+            <p className="text-sm font-bold text-slate-900">Elérhető fizetési módok</p>
+            <p className="mt-0.5 text-xs text-red-950/60">
+              Az átutalás aktiválásához egyeztessen a fejlesztővel.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {([
+                { id: "card" as const, label: "Bankkártya (SimplePay)" },
+                { id: "transfer" as const, label: "Átutalás" },
+              ]).map((option) => {
+                const active = enabledPaymentMethods.includes(option.id);
+                const lockedByDev = option.id === "transfer";
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    disabled={lockedByDev || option.id === "card"}
+                    className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+                      active
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                    } ${lockedByDev || option.id === "card" ? "cursor-not-allowed opacity-70" : ""}`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -210,7 +246,7 @@ export default function AdminDashboardPage() {
                   return (
                     <div key={order.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 transition hover:bg-brand-50/30">
                       <div>
-                        <p className="font-mono text-xs text-slate-400">#{order.id.slice(0, 8)}…</p>
+                        <p className="font-mono text-xs text-slate-400" title={order.id}>{formatOrderPublicId(order.id)}</p>
                         <p className="text-sm font-semibold text-slate-900">
                           {new Date(order.created_at).toLocaleDateString("hu-HU")}
                         </p>

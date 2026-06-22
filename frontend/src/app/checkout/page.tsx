@@ -1,141 +1,85 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import emailjs from "@emailjs/browser";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { clearCart } from "@/lib/cart";
+import { validateCartStock } from "@/lib/validate-cart-stock";
 import { useCart } from "@/hooks/useCart";
 import { getCityByZipAPI } from "@/lib/nominatimApi";
 import { getCityByZip } from "@/lib/postalCodes";
+import {
+  formatHungarianPhone,
+  formatHungarianTaxNumber,
+  isValidEmail,
+  isValidHungarianPhone,
+  isValidHungarianTaxNumber,
+  normalizeEmail,
+} from "@/lib/checkout-inputs";
+import {
+  getEnabledPaymentMethods,
+  getSampleTargetLabel,
+  type PaymentMethod,
+} from "@/lib/checkout-config";
+import { formatShippingFee, shippingFeeForSubtotal } from "@/lib/shipping/fees";
+import { formatOrderPublicId } from "@/lib/order-display-id";
+import { calculateCouponDiscount, cartItemIsOnSale } from "@/lib/pricing";
+import { BANK_DETAILS } from "@/lib/bank-details";
 import { supabase } from "@/lib/supabase";
+import GuestCheckoutNotice from "@/components/GuestCheckoutNotice";
+import PickupPointSelector from "@/components/PickupPointSelector";
+import SiteLogo from "@/components/SiteLogo";
+import type { PickupPoint, PickupPointMeta } from "@/types/pickup-point";
+import type { Session } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 
-type OrderItem = Database["public"]["Tables"]["order_items"]["Row"];
-type ProductRow = Database["public"]["Tables"]["products"]["Row"];
-type CategoryRow = Database["public"]["Tables"]["categories"]["Row"];
+type CouponRow = Database["public"]["Tables"]["coupons"]["Row"];
 
-async function sendOrderEmails(params: {
-  orderId: string;
-  customerEmail: string;
-  customerName: string;
-  paymentMethod: string;
-  shippingAddress: string;
-  shippingPhone: string;
-  total: number;
-  currency: string;
-  items: OrderItem[];
-  createdAt: string;
-  shippingMethodLabel?: string;
-}) {
-  const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID;
-  const customerTemplateId = process.env.NEXT_PUBLIC_EMAILJS_CUSTOMER_TEMPLATE_ID;
-  const adminTemplateId = process.env.NEXT_PUBLIC_EMAILJS_ADMIN_TEMPLATE_ID;
-  const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
-  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://hpvhelp.hu").replace(/\/+$/, "");
-
-  if (!serviceId || !publicKey || serviceId === "service_xxxxxxx") return;
-
-  const paymentLabels: Record<string, string> = {
-    card: "Bankkártyás fizetés (SimplePay)",
-    transfer: "Banki átutalás",
-    cod: "Utánvét",
-  };
-
-  const shortId = `#${params.orderId.slice(0, 8).toUpperCase()}`;
-
-  const paymentInfoMap: Record<string, string> = {
-    card: [
-      "A fizetés a SimplePay biztonságos fizetési rendszerén keresztül történt.",
-      "Rendelése feldolgozás alatt áll.",
-    ].join("\n"),
-    transfer: [
-      "Kérjük, utald el a végösszeget az alábbi bankszámlára:",
-      "",
-      `Kedvezményezett: Sunmed Kft.`,
-      `Számlaszám: 10918001-00000124-71950001`,
-      `Bank: UniCredit Bank`,
-      `Közlemény: ${shortId}`,
-      `Összeg: ${params.total.toLocaleString("hu-HU")} ${params.currency}`,
-      "",
-      "A rendelés feldolgozását az összeg beérkezése után kezdjük meg.",
-    ].join("\n"),
-    cod: [
-      "A megrendelt termékek kifizetése készpénzzel vagy bankkártyával a csomag átvételekor történik.",
-      "Az utánvétes fizetési kezelési költsége: 690 Ft.",
-      "",
-      "Munkanapokon a 14 óráig leadott megrendeléseket még aznap indítjuk.",
-      "Szállítóink a GLS és Magyar Posta (MPL) a csomagindítás utáni munkanapon kézbesítik a küldeményeket,",
-      "melyekről elektronikusan (SMS vagy email) tájékoztatást is küldenek.",
-      "A csomagok nyomkövetésére a futárszolgálatok weboldalain is lehetőség van.",
-    ].join("\n"),
-  };
-
-  const nextStepsMap: Record<string, string> = {
-    card: "1. Rendelését feldolgozzuk és előkészítjük szállításra\n2. A futárszolgálat felkeresi Önt a megadott címen",
-    transfer: "1. Utald el az összeget a megadott bankszámlára\n2. Az összeg beérkezése után feldolgozzuk a rendelést\n3. A futárszolgálat felkeresi Önt a megadott címen",
-    cod: "1. Rendelését feldolgozzuk és előkészítjük szállításra\n2. A futárszolgálat felkeresi Önt a megadott címen\n3. A futárnak fizet a kézbesítéskor",
-  };
-
-  const itemsText = params.items
-    .map((i) => `${i.product_name} - ${i.quantity} db - ${Number(i.line_total).toLocaleString("hu-HU")} Ft`)
-    .join("\n");
-
-  const commonParams = {
-    email_subject: `Köszönjük rendelését! ${shortId} - HPVHelp Webshop`,
-    email_title: "Köszönjük a rendelését!",
-    email_intro: "Rendelését sikeresen fogadtuk. Köszönjük vásárlását!",
-    email_note: "A rendelés részleteit elküldtük emailben. Hamarosan felvesszük Önnel a kapcsolatot.",
-    order_id: shortId,
-    order_date: new Date(params.createdAt).toLocaleString("hu-HU"),
-    payment_method: paymentLabels[params.paymentMethod] ?? params.paymentMethod,
-    shipping_method: params.shippingMethodLabel ?? "",
-    total: `${params.total.toLocaleString("hu-HU")} ${params.currency}`,
-    items_text: itemsText,
-    shipping_name: params.customerName,
-    shipping_address: params.shippingAddress,
-    shipping_phone: params.shippingPhone,
-    payment_info: paymentInfoMap[params.paymentMethod] ?? "",
-    next_steps: nextStepsMap[params.paymentMethod] ?? "",
-    site_url: siteUrl,
-    order_link: `${siteUrl}/orders/${params.orderId}`,
-    orders_link: `${siteUrl}/orders`,
-    home_link: `${siteUrl}/`,
-  };
-
+async function triggerOrderPlacedEmail(orderId: string, accessToken: string) {
   try {
-    if (customerTemplateId && customerTemplateId !== "template_xxxxxxx") {
-      await emailjs.send(serviceId, customerTemplateId, {
-        ...commonParams,
-        to_email: params.customerEmail,
-        to_name: params.customerName,
-      }, publicKey);
-    }
-
-    if (adminTemplateId && adminEmail && adminTemplateId !== "template_xxxxxxx") {
-      await emailjs.send(serviceId, adminTemplateId, {
-        ...commonParams,
-        to_email: adminEmail,
-        customer_email: params.customerEmail,
-      }, publicKey);
-    }
-  } catch (err) {
-    console.error("EmailJS error:", err);
+    await fetch("/api/email/order-placed", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ orderId }),
+    });
+  } catch (e) {
+    console.error("Order confirmation email request failed:", e);
   }
 }
 
-type PaymentMethod = "card" | "transfer" | "cod";
-type ShippingMethod = "posta" | "gls" | "csomagpont" | "pickup";
+type ProductRow = Database["public"]["Tables"]["products"]["Row"];
+type CategoryRow = Database["public"]["Tables"]["categories"]["Row"];
+
+type ShippingMethod = "posta" | "gls" | "csomagpont" | "pickup" | "abroad";
 type BuyerType = "individual" | "company";
 
-const shippingOptions: { id: ShippingMethod; label: string; sub: string; price: number }[] = [
-  { id: "posta",     label: "Magyar Posta",  sub: "Házhozszállítás futárszolgálattal", price: 1950 },
-  { id: "gls",       label: "GLS",           sub: "Házhozszállítás futárszolgálattal", price: 2250 },
-  { id: "csomagpont",label: "Csomagpontok",  sub: "GLS, Packeta, FOX POST, Magyar Posta csomagpontok", price: 1650 },
-  { id: "pickup",    label: "Személyes átvétel", sub: "7623 Pécs, Megyeri út 26.", price: 0 },
+type CarrierLogo = {
+  name: string;
+  src: string;
+};
+
+const shippingOptions: { id: ShippingMethod; label: string; sub: string }[] = [
+  { id: "posta",     label: "Magyar Posta",  sub: "Házhozszállítás futárszolgálattal" },
+  { id: "gls",       label: "GLS",           sub: "Házhozszállítás futárszolgálattal" },
+  { id: "csomagpont",label: "Csomagpontok",  sub: "GLS és MPL postapontok, automaták" },
+  { id: "pickup",    label: "Személyes átvétel", sub: "7623 Pécs, Megyeri út 26. fszt. 109." },
+  { id: "abroad",    label: "Külföldi szállítás", sub: "EU-n kívüli vagy nem magyarországi szállítási cím" },
 ];
+
+const shippingCarrierLogos: Record<ShippingMethod, CarrierLogo[]> = {
+  posta: [{ name: "Magyar Posta", src: "/shipping/magyar-posta.png" }],
+  gls: [{ name: "GLS", src: "/shipping/gls.png" }],
+  csomagpont: [
+    { name: "GLS", src: "/shipping/gls.png" },
+    { name: "Magyar Posta", src: "/shipping/magyar-posta.png" },
+  ],
+  pickup: [],
+  abroad: [],
+};
 
 const paymentOptions: { id: PaymentMethod; label: string; sub: string; icon: string }[] = [
   {
@@ -150,19 +94,53 @@ const paymentOptions: { id: PaymentMethod; label: string; sub: string; icon: str
     sub: "A rendelés feldolgozását az összeg beérkezése után kezdjük meg",
     icon: "M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4",
   },
-  {
-    id: "cod",
-    label: "Utánvét",
-    sub: "Fizetés a futárnak a kézbesítéskor",
-    icon: "M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z",
-  },
 ];
 
-const BANK_DETAILS = {
-  name: "Sunmed Kft.",
-  iban: "10918001-00000124-71950001",
-  swift: "OTPVHUHB",
+type SavedCheckoutProfile = {
+  buyerType: BuyerType;
+  name: string;
+  companyName: string;
+  companyTaxNumber: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  zip: string;
+  city: string;
+  street: string;
+  houseNumber: string;
+  diffBilling: boolean;
+  billingName: string;
+  billingTaxNumber: string;
+  billingZip: string;
+  billingCity: string;
+  billingStreet: string;
+  billingHouseNumber: string;
 };
+
+function checkoutProfileStorageKey(userId: string): string {
+  return `checkout_profile_v1:${userId}`;
+}
+
+function pickupPointToMeta(point: PickupPoint): PickupPointMeta {
+  return {
+    provider: point.provider,
+    providerPointId: point.providerPointId,
+    mplDeliveryMode: point.mplDeliveryMode,
+    glsPsdId: point.glsPsdId,
+    foxpostOperatorId: point.foxpostOperatorId,
+    mplParcelPickupSite: point.mplParcelPickupSite,
+    zip: point.zip,
+    city: point.city,
+    lat: point.lat,
+    lng: point.lng,
+    kind: point.kind,
+  };
+}
+
+function formatPickupShippingAddress(point: PickupPoint): string {
+  const line = point.address || point.name;
+  return `${point.zip} ${point.city}, ${line}`.trim();
+}
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -191,12 +169,26 @@ export default function CheckoutPage() {
 
   const [shippingMethod, setShippingMethod] = useState<ShippingMethod>("posta");
   const [payment, setPayment] = useState<PaymentMethod>("card");
+  const [checkoutStep, setCheckoutStep] = useState<"details" | "review">("details");
+  const [enabledPaymentMethods, setEnabledPaymentMethods] = useState<PaymentMethod[]>(["card"]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponRow | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [allProductsForCoupon, setAllProductsForCoupon] = useState<{ id: string; name: string }[]>([]);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [vatContentTotal, setVatContentTotal] = useState<number>(0);
+  const [selectedPickupPoint, setSelectedPickupPoint] = useState<PickupPoint | null>(null);
+  const [pickupModalOpen, setPickupModalOpen] = useState(false);
 
-  const shipping = shippingOptions.find((o) => o.id === shippingMethod)?.price ?? 0;
+  const isPickupShipping = shippingMethod === "csomagpont";
+
+  const shipping = shippingFeeForSubtotal(shippingMethod, subtotal);
+  const couponDiscount = appliedCoupon ? calculateCouponDiscount(appliedCoupon, subtotal + shipping) : 0;
 
   // Szállítási ZIP → város autofill
   useEffect(() => {
@@ -227,7 +219,7 @@ export default function CheckoutPage() {
     })();
     return () => { cancelled = true; };
   }, [billingZip]);
-  const total = subtotal + shipping;
+  const total = Math.max(0, subtotal + shipping - couponDiscount);
 
   useEffect(() => {
     setMounted(true);
@@ -237,6 +229,7 @@ export default function CheckoutPage() {
     void supabase.auth.getSession().then(({ data }) => {
       const user = data.session?.user;
       if (!user) return;
+      setCurrentUserId(user.id);
       const meta = user.user_metadata as Record<string, string> | undefined;
       if (meta?.full_name) setName(meta.full_name);
       if (user.email) setEmail(user.email);
@@ -244,8 +237,63 @@ export default function CheckoutPage() {
   }, []);
 
   useEffect(() => {
+    if (!currentUserId) return;
+    try {
+      const raw = window.localStorage.getItem(checkoutProfileStorageKey(currentUserId));
+      if (!raw) return;
+      const saved = JSON.parse(raw) as Partial<SavedCheckoutProfile>;
+      setBuyerType(saved.buyerType === "company" ? "company" : "individual");
+      setName(saved.name ?? "");
+      setCompanyName(saved.companyName ?? "");
+      setCompanyTaxNumber(saved.companyTaxNumber ?? "");
+      setContactName(saved.contactName ?? "");
+      setEmail(saved.email ?? "");
+      setPhone(saved.phone ?? "");
+      setZip(saved.zip ?? "");
+      setCity(saved.city ?? "");
+      setStreet(saved.street ?? "");
+      setHouseNumber(saved.houseNumber ?? "");
+      setDiffBilling(Boolean(saved.diffBilling));
+      setBillingName(saved.billingName ?? "");
+      setBillingTaxNumber(saved.billingTaxNumber ?? "");
+      setBillingZip(saved.billingZip ?? "");
+      setBillingCity(saved.billingCity ?? "");
+      setBillingStreet(saved.billingStreet ?? "");
+      setBillingHouseNumber(saved.billingHouseNumber ?? "");
+    } catch {
+      // Hibás mentett adat esetén figyelmen kívül hagyjuk.
+    }
+  }, [currentUserId]);
+
+  useEffect(() => {
+    if (!infoMessage) return;
+    const timeout = window.setTimeout(() => setInfoMessage(null), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [infoMessage]);
+
+  useEffect(() => {
+    void getEnabledPaymentMethods().then((methods) => {
+      setEnabledPaymentMethods(methods);
+      setPayment((current) => (methods.includes(current) ? current : (methods[0] ?? "card")));
+    });
+  }, []);
+
+  useEffect(() => {
+    void supabase.from("products").select("id, name").eq("is_active", true).then(({ data }) => {
+      setAllProductsForCoupon(data ?? []);
+    });
+  }, []);
+
+  /** Sikeres rendelés után clearCart() ürít — ne irányítsuk vissza a kosárba SimplePay / success előtt. */
+  const skipEmptyCartRedirect = useRef(false);
+
+  useEffect(() => {
+    if (items.length > 0) skipEmptyCartRedirect.current = false;
+  }, [items.length]);
+
+  useEffect(() => {
     if (!mounted) return;
-    if (items.length === 0) router.replace("/cart");
+    if (items.length === 0 && !skipEmptyCartRedirect.current) router.replace("/cart");
   }, [mounted, items.length, router]);
 
   useEffect(() => {
@@ -301,63 +349,140 @@ export default function CheckoutPage() {
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    if (checkoutStep === "details") {
+      const validationError = validateCheckoutInputs();
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+      if (currentUserId) {
+        const rawSaved = window.localStorage.getItem(checkoutProfileStorageKey(currentUserId));
+        if (!rawSaved) {
+          // Első alkalom: nincs még mentett adat
+          const wants = window.confirm("Szeretnéd menteni ezeket az adatokat a jövőbeni rendelésekhez?");
+          if (wants) handleSaveCheckoutProfile();
+        } else {
+          // Már van mentett adat — csak akkor kérdezzük meg, ha változott valami
+          try {
+            const saved = JSON.parse(rawSaved) as Partial<SavedCheckoutProfile>;
+            const changed =
+              saved.buyerType !== buyerType ||
+              (saved.name ?? "") !== name ||
+              (saved.companyName ?? "") !== companyName ||
+              (saved.companyTaxNumber ?? "") !== companyTaxNumber ||
+              (saved.contactName ?? "") !== contactName ||
+              (saved.email ?? "") !== normalizeEmail(email) ||
+              (saved.phone ?? "") !== phone ||
+              (saved.zip ?? "") !== zip ||
+              (saved.city ?? "") !== city ||
+              (saved.street ?? "") !== street ||
+              (saved.houseNumber ?? "") !== houseNumber ||
+              Boolean(saved.diffBilling) !== diffBilling ||
+              (saved.billingName ?? "") !== billingName ||
+              (saved.billingTaxNumber ?? "") !== billingTaxNumber ||
+              (saved.billingZip ?? "") !== billingZip ||
+              (saved.billingCity ?? "") !== billingCity ||
+              (saved.billingStreet ?? "") !== billingStreet ||
+              (saved.billingHouseNumber ?? "") !== billingHouseNumber;
+            if (changed) {
+              const wants = window.confirm("Az adataid megváltoztak. Frissítsük a mentett rendelési adatokat?");
+              if (wants) handleSaveCheckoutProfile();
+            }
+          } catch {
+            // Sérült mentett adat esetén újra kérdezzük
+            const wants = window.confirm("Szeretnéd menteni ezeket az adatokat a jövőbeni rendelésekhez?");
+            if (wants) handleSaveCheckoutProfile();
+          }
+        }
+      }
+      setCheckoutStep("review");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
 
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError || !session?.user) {
-      router.push("/login");
+    let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    let session: Session | null = sessionData.session;
+
+    if (sessionError) {
+      setSubmitting(false);
+      setError(sessionError.message);
+      return;
+    }
+
+    if (!session?.user) {
+      const { data: anonData, error: anonError } = await supabase.auth.signInAnonymously();
+      if (anonError || !anonData.session) {
+        setSubmitting(false);
+        setError(
+          "A vendégrendeléshez technikai okból munkamenet kell. Jelentkezz be, vagy kérd a Supabase projektben: Authentication → Sign In / Providers → „Anonymous sign-ins” bekapcsolása. " +
+            (anonError?.message ? `(${anonError.message})` : "")
+        );
+        return;
+      }
+      session = anonData.session;
+    }
+
+    if (!session?.user) {
+      setSubmitting(false);
+      setError("Nem sikerült a rendelés véglegesítése. Kérjük, jelentkezz be a folytatáshoz.");
       return;
     }
 
     setSubmitting(true);
-
-    const shippingAddress = `${zip} ${city}, ${street} ${houseNumber}`;
-
-    if (buyerType === "individual") {
-      if (!name.trim()) {
-        setSubmitting(false);
-        setError("Kérjük add meg a teljes neved.");
-        return;
-      }
-    } else {
-      if (!companyName.trim() || !contactName.trim()) {
-        setSubmitting(false);
-        setError("Kérjük töltsd ki a cégnevet és a kapcsolattartó nevét.");
-        return;
-      }
-      if (!diffBilling && !companyTaxNumber.trim()) {
-        setSubmitting(false);
-        setError("Céges vásárlásnál az adószám megadása kötelező.");
-        return;
-      }
-    }
-
-    // Számlázási cím (ha különbözik a szállítástól)
-    if (diffBilling && (!billingName || !billingZip || !billingCity || !billingStreet || !billingHouseNumber)) {
+    if (!enabledPaymentMethods.includes(payment)) {
       setSubmitting(false);
-      setError("Kérjük töltsd ki az összes számlázási cím mezőt.");
+      setError("A kiválasztott fizetési mód jelenleg nem elérhető.");
       return;
     }
-    if (diffBilling && buyerType === "company" && !billingTaxNumber.trim()) {
+
+    const validationError = validateCheckoutInputs();
+    if (validationError) {
       setSubmitting(false);
-      setError("Céges vásárlásnál a számlázási adószám megadása kötelező.");
+      setError(validationError);
       return;
     }
+
+    const stockValidationError = await validateCartStock(items);
+    if (stockValidationError) {
+      setSubmitting(false);
+      setError(stockValidationError);
+      return;
+    }
+
+    const shippingAddress =
+      shippingMethod === "csomagpont" && selectedPickupPoint
+        ? formatPickupShippingAddress(selectedPickupPoint)
+        : `${zip} ${city}, ${street} ${houseNumber}`;
+    const emailNorm = normalizeEmail(email);
 
     const shippingName = buyerType === "individual" ? name.trim() : contactName.trim();
 
-    const invoiceLines: string[] = [];
+    const diffBillingAddrLine = diffBilling
+      ? `${billingZip} ${billingCity}, ${billingStreet} ${billingHouseNumber}`
+      : null;
+
+    let billingNameVal: string | null = null;
+    let billingTaxVal: string | null = null;
+    let billingAddrVal: string | null = null;
+    let billingCompanyContactVal: string | null = null;
+
     if (buyerType === "company") {
+      billingCompanyContactVal = `${companyName.trim()} – ${contactName.trim()}`;
       if (diffBilling) {
-        invoiceLines.push(`Számlázás: ${billingName.trim()}, adószám: ${billingTaxNumber.trim()}`);
-        invoiceLines.push(`Számlázási cím: ${billingZip} ${billingCity}, ${billingStreet} ${billingHouseNumber}`);
+        billingNameVal = billingName.trim();
+        billingTaxVal = billingTaxNumber.trim();
+        billingAddrVal = diffBillingAddrLine;
       } else {
-        invoiceLines.push(`Számlázás: ${companyName.trim()}, adószám: ${companyTaxNumber.trim()}`);
+        billingNameVal = companyName.trim();
+        billingTaxVal = companyTaxNumber.trim();
+        billingAddrVal = null;
       }
-      invoiceLines.push(`Cég / kapcsolattartó szállításhoz: ${companyName.trim()} – ${contactName.trim()}`);
+    } else if (diffBilling) {
+      billingNameVal = billingName.trim();
+      billingAddrVal = diffBillingAddrLine;
     }
-    const combinedNotes = [invoiceLines.length ? invoiceLines.join("\n") : null, notes.trim() || null]
-      .filter(Boolean)
-      .join("\n\n") || null;
+
+    const notesOnly = notes.trim() || null;
 
     const { data: order, error: orderError } = await supabase
       .from("orders")
@@ -365,19 +490,28 @@ export default function CheckoutPage() {
         user_id: session.user.id,
         status: "pending",
         subtotal: Number(subtotal.toFixed(2)),
-        discount: 0,
+        discount: couponDiscount,
+        coupon_code: appliedCoupon?.code ?? null,
         total: Number(total.toFixed(2)),
         currency: "HUF",
-        payment_provider:
-          payment === "card"
-            ? "simplepay"
-            : payment === "transfer"
-              ? "manual_transfer"
-              : "manual_cod",
+        payment_provider: payment === "card" ? "simplepay" : "manual_transfer",
         shipping_name: shippingName,
         shipping_phone: phone,
         shipping_address: shippingAddress,
-        notes: combinedNotes,
+        shipping_email: emailNorm,
+        shipping_method: shippingMethod,
+        pickup_point_id: selectedPickupPoint?.id ?? null,
+        pickup_point_name: selectedPickupPoint?.name ?? null,
+        pickup_point_address: selectedPickupPoint
+          ? selectedPickupPoint.address || formatPickupShippingAddress(selectedPickupPoint)
+          : null,
+        pickup_point_provider: selectedPickupPoint?.provider ?? null,
+        pickup_point_meta: selectedPickupPoint ? pickupPointToMeta(selectedPickupPoint) : null,
+        billing_name: billingNameVal,
+        billing_tax_number: billingTaxVal,
+        billing_address: billingAddrVal,
+        billing_company_contact: billingCompanyContactVal,
+        notes: notesOnly,
       })
       .select("id")
       .single();
@@ -391,7 +525,9 @@ export default function CheckoutPage() {
     const orderItemsPayload = items.map((item) => ({
       order_id: order.id,
       product_id: item.productId,
-      product_name: item.name,
+      product_name: getSampleTargetLabel(item.sampleTarget)
+        ? `${item.name} - ${getSampleTargetLabel(item.sampleTarget)}`
+        : item.name,
       unit_price: Number(item.price.toFixed(2)),
       quantity: item.quantity,
       line_total: Number((item.price * item.quantity).toFixed(2)),
@@ -419,30 +555,228 @@ export default function CheckoutPage() {
       return;
     }
 
+    const accessToken = session.access_token ?? "";
+
+    // Kupon rögzítés MINDEN fizetési módnál (service role API-on keresztül, RLS bypass)
+    if (appliedCoupon && accessToken) {
+      const couponUseRes = await fetch("/api/coupons/use", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ couponId: appliedCoupon.id, orderId: order.id }),
+      });
+      if (!couponUseRes.ok) {
+        const j = (await couponUseRes.json()) as { error?: string };
+        setSubmitting(false);
+        setError(j.error ?? "A kupon rögzítése sikertelen, próbáld újra.");
+        return;
+      }
+    }
+
+    if (payment === "card") {
+      const startResponse = await fetch("/simplepay/start", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+      const startJson = (await startResponse.json()) as { paymentUrl?: string; error?: string; details?: unknown };
+      if (!startResponse.ok || !startJson.paymentUrl) {
+        setSubmitting(false);
+        const detailsText = Array.isArray((startJson as { details?: unknown }).details)
+          ? (startJson as { details?: unknown[] }).details?.join(", ")
+          : typeof startJson.details === "string"
+            ? startJson.details
+            : "";
+        setError(
+          detailsText
+            ? `${startJson.error ?? "A bankkártyás fizetés indítása sikertelen."} (${detailsText})`
+            : (startJson.error ?? "A bankkártyás fizetés indítása sikertelen.")
+        );
+        return;
+      }
+
+      skipEmptyCartRedirect.current = true;
+      window.location.href = startJson.paymentUrl;
+      clearCart();
+      return;
+    }
+
+    skipEmptyCartRedirect.current = true;
     clearCart();
 
-    // Emailek küldése háttérben
-    const selectedShipping = shippingOptions.find((o) => o.id === shippingMethod);
-    void sendOrderEmails({
-      orderId: order.id,
-      customerEmail: email,
-      customerName: buyerType === "individual" ? name.trim() : `${contactName.trim()} (${companyName.trim()})`,
-      paymentMethod: payment,
-      shippingAddress: shippingMethod === "pickup"
-        ? "Személyes átvétel: 7623 Pécs, Megyeri út 26."
-        : `${zip} ${city}, ${street} ${houseNumber}`,
-      shippingPhone: phone,
-      total: Number(total.toFixed(2)),
-      currency: "HUF",
-      items: orderItemsData,
-      createdAt: new Date().toISOString(),
-      shippingMethodLabel: selectedShipping
-        ? `${selectedShipping.label}${selectedShipping.price > 0 ? ` (${selectedShipping.price.toLocaleString("hu-HU")} Ft)` : " (Ingyenes)"}`
-        : "",
-    });
+    if (accessToken) void triggerOrderPlacedEmail(order.id, accessToken);
 
     setSubmitting(false);
     router.push(`/checkout/success?orderId=${order.id}&payment=${payment}`);
+  }
+
+  function handleSaveCheckoutProfile() {
+    if (!currentUserId) {
+      setError("A mentéshez jelentkezz be.");
+      return;
+    }
+    const payload: SavedCheckoutProfile = {
+      buyerType,
+      name,
+      companyName,
+      companyTaxNumber,
+      contactName,
+      email: normalizeEmail(email),
+      phone,
+      zip,
+      city,
+      street,
+      houseNumber,
+      diffBilling,
+      billingName,
+      billingTaxNumber,
+      billingZip,
+      billingCity,
+      billingStreet,
+      billingHouseNumber,
+    };
+    window.localStorage.setItem(checkoutProfileStorageKey(currentUserId), JSON.stringify(payload));
+    setError(null);
+    setInfoMessage("Az adataidat elmentettük a jövőbeni rendelésekhez.");
+  }
+
+  async function handleApplyCoupon() {
+    const code = couponCode.trim().toUpperCase();
+    if (!code) { setCouponError("Add meg a kuponkódot."); return; }
+    setCouponLoading(true);
+    setCouponError(null);
+
+    const { data, error: dbError } = await supabase
+      .from("coupons")
+      .select("*")
+      .eq("code", code)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    setCouponLoading(false);
+
+    if (dbError || !data) {
+      setCouponError("Érvénytelen vagy inaktív kuponkód.");
+      return;
+    }
+
+    const now = new Date();
+    if (data.valid_from && new Date(data.valid_from) > now) {
+      setCouponError("Ez a kupon még nem érvényes.");
+      return;
+    }
+    const expired = data.expires_at ? new Date(data.expires_at) < now : false;
+    if (expired) { setCouponError("Ez a kupon lejárt."); return; }
+    if (data.max_uses != null && data.used_count >= data.max_uses) {
+      setCouponError("Ez a kupon már nem használható (elérte a maximum felhasználások számát).");
+      return;
+    }
+    if (data.min_order_amount != null && (subtotal + shipping) < Number(data.min_order_amount)) {
+      setCouponError(`A kuponhoz minimum ${Number(data.min_order_amount).toLocaleString("hu-HU")} Ft rendelési összeg szükséges.`);
+      return;
+    }
+
+    // Per-user limit ellenőrzése
+    if (data.max_uses_per_user != null) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user?.id;
+      if (userId) {
+        // coupon_usage-ból olvassuk — a "Users see own usage" RLS policy alapján
+        const { count, error: countError } = await supabase
+          .from("coupon_usage")
+          .select("id", { count: "exact", head: true })
+          .eq("coupon_id", data.id)
+          .eq("user_id", userId);
+        if (!countError && (count ?? 0) >= data.max_uses_per_user) {
+          setCouponError(`Ezt a kupont már felhasználtad (max. ${data.max_uses_per_user}× / fő).`);
+          return;
+        }
+      }
+    }
+
+    // Termék-hatókör ellenőrzése: ha van restricted_product_ids, a kosárban kell legyen ilyen termék
+    const restrictedIds = data.restricted_product_ids as string[] | null;
+    if (restrictedIds && restrictedIds.length > 0) {
+      const cartProductIds = items.map((i) => i.productId);
+      const hasEligibleItem = cartProductIds.some((id) => restrictedIds.includes(id));
+      if (!hasEligibleItem) {
+        const eligibleNames = allProductsForCoupon
+          .filter((p) => restrictedIds.includes(p.id))
+          .map((p) => p.name)
+          .slice(0, 3)
+          .join(", ");
+        setCouponError(`Ez a kupon csak meghatározott termékekre érvényes${eligibleNames ? `: ${eligibleNames}` : ""}.`);
+        return;
+      }
+    }
+
+    // Akciós termék ellenőrzése – kivétel nélkül tiltott (csak aktuálisan érvényes kedvezménynél)
+    const productIds = items.map((i) => i.productId);
+    const [{ data: productsData }, { data: categoriesData }] = await Promise.all([
+      supabase.from("products").select("*").in("id", productIds),
+      supabase.from("categories").select("*"),
+    ]);
+    const categoriesById = new Map((categoriesData ?? []).map((c) => [c.id, c]));
+
+    const hasDiscountedItem = (productsData ?? []).some((p) => {
+      const category = p.category_id ? categoriesById.get(p.category_id) : undefined;
+      return cartItemIsOnSale(p, category);
+    });
+
+    if (hasDiscountedItem) {
+      setCouponError("Akciós vagy leárazott termék esetén kupon nem érvényesíthető.");
+      return;
+    }
+
+    setAppliedCoupon(data);
+    setCouponCode("");
+  }
+
+  function validateCheckoutInputs(): string | null {
+    const emailNorm = normalizeEmail(email);
+    if (!isValidEmail(emailNorm)) {
+      return "Kérjük adj meg egy érvényes email címet.";
+    }
+    if (!isValidHungarianPhone(phone)) {
+      return "Kérjük adj meg egy érvényes magyar telefonszámot (pl. +36 30 123 4567 vagy vezetékes: +36 1 …).";
+    }
+    if (buyerType === "individual") {
+      if (!name.trim()) return "Kérjük add meg a teljes neved.";
+    } else {
+      if (!companyName.trim() || !contactName.trim()) {
+        return "Kérjük töltsd ki a cégnevet és a kapcsolattartó nevét.";
+      }
+      if (!diffBilling && !isValidHungarianTaxNumber(companyTaxNumber)) {
+        return "Az adószám formátuma: 12345678-1-11 (8–1–2 számjegy).";
+      }
+    }
+    if (diffBilling && (!billingName || !billingZip || !billingCity || !billingStreet || !billingHouseNumber)) {
+      return "Kérjük töltsd ki az összes számlázási cím mezőt.";
+    }
+    if (diffBilling && buyerType === "company" && !isValidHungarianTaxNumber(billingTaxNumber)) {
+      return "A számlázási adószám formátuma: 12345678-1-11 (8–1–2 számjegy).";
+    }
+    if (shippingMethod === "csomagpont") {
+      if (!selectedPickupPoint) {
+        return "Kérjük válassz egy csomagpontot az átvételhez.";
+      }
+    } else if (!isPickupShipping && shippingMethod !== "pickup" && shippingMethod !== "abroad") {
+      if (!zip.trim() || !city.trim() || !street.trim() || !houseNumber.trim()) {
+        return "Kérjük töltsd ki a szállítási címet.";
+      }
+    }
+    return null;
+  }
+
+  function handleShippingMethodChange(method: ShippingMethod) {
+    setShippingMethod(method);
+    if (method === "csomagpont") {
+      setPickupModalOpen(true);
+    } else {
+      setSelectedPickupPoint(null);
+    }
   }
 
   const inputCls = "w-full rounded-xl border border-brand-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-100";
@@ -461,10 +795,7 @@ export default function CheckoutPage() {
             </svg>
             Vissza a kosárhoz
           </Link>
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-brand-900 to-brand-700 shadow-sm" />
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-900">HPVHelp Webshop</p>
-          </div>
+          <SiteLogo withLink={false} size="md" />
         </div>
       </header>
 
@@ -473,6 +804,8 @@ export default function CheckoutPage() {
           <p className="text-xs font-bold uppercase tracking-widest text-brand-700">Rendelés</p>
           <h1 className="mt-1 text-3xl font-bold text-slate-900">Fizetés</h1>
         </div>
+
+        <GuestCheckoutNotice className="mb-6" />
 
         {!mounted ? (
           <div className="space-y-4">
@@ -487,7 +820,12 @@ export default function CheckoutPage() {
               {error ? (
                 <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{error}</div>
               ) : null}
+              {infoMessage ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{infoMessage}</div>
+              ) : null}
 
+              {checkoutStep === "details" ? (
+                <>
               {/* Shipping */}
               <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
                 <h2 className="mb-5 text-base font-bold text-slate-900">Szállítási adatok</h2>
@@ -549,11 +887,14 @@ export default function CheckoutPage() {
                           <label className={labelCls}>Adószám *</label>
                           <input
                             type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
                             required
                             value={companyTaxNumber}
-                            onChange={(e) => setCompanyTaxNumber(e.target.value)}
+                            onChange={(e) => setCompanyTaxNumber(formatHungarianTaxNumber(e.target.value))}
                             className={inputCls}
                             placeholder="12345678-1-11"
+                            maxLength={13}
                           />
                         </div>
                       ) : null}
@@ -573,33 +914,80 @@ export default function CheckoutPage() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className={labelCls}>Email cím *</label>
-                      <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} placeholder="pelda@email.hu" />
+                      <input
+                        type="email"
+                        inputMode="email"
+                        autoComplete="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value.replace(/\s/g, ""))}
+                        className={inputCls}
+                        placeholder="pelda@email.hu"
+                      />
                     </div>
                     <div>
                       <label className={labelCls}>Telefonszám *</label>
-                      <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} placeholder="+36 30 123 4567" />
+                      <input
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        required
+                        value={phone}
+                        onChange={(e) => setPhone(formatHungarianPhone(e.target.value))}
+                        className={inputCls}
+                        placeholder="+36 30 123 4567"
+                      />
                     </div>
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className={labelCls}>Irányítószám *</label>
-                      <input type="text" required value={zip} onChange={(e) => setZip(e.target.value)} className={inputCls} placeholder="1011" />
+                  {!isPickupShipping ? (
+                    <>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className={labelCls}>Irányítószám *</label>
+                          <input type="text" required value={zip} onChange={(e) => setZip(e.target.value)} className={inputCls} placeholder="1011" />
+                        </div>
+                        <div>
+                          <label className={labelCls}>Város *</label>
+                          <input type="text" required value={city} onChange={(e) => setCity(e.target.value)} className={inputCls} placeholder="Budapest" />
+                        </div>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className={labelCls}>Utca *</label>
+                          <input type="text" required value={street} onChange={(e) => setStreet(e.target.value)} className={inputCls} placeholder="Példa utca" />
+                        </div>
+                        <div>
+                          <label className={labelCls}>Házszám *</label>
+                          <input type="text" required value={houseNumber} onChange={(e) => setHouseNumber(e.target.value)} className={inputCls} placeholder="12/A" />
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-4">
+                      <p className="text-xs font-bold uppercase tracking-widest text-brand-700">Csomagpont átvétel</p>
+                      {selectedPickupPoint ? (
+                        <div className="mt-2">
+                          <p className="text-sm font-bold text-slate-900">{selectedPickupPoint.name}</p>
+                          <p className="text-sm text-red-950/70">{formatPickupShippingAddress(selectedPickupPoint)}</p>
+                          <button
+                            type="button"
+                            onClick={() => setPickupModalOpen(true)}
+                            className="mt-3 text-sm font-semibold text-brand-800 underline"
+                          >
+                            Másik csomagpont választása
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setPickupModalOpen(true)}
+                          className="btn-press mt-3 rounded-xl bg-brand-900 px-4 py-2.5 text-sm font-bold text-white"
+                        >
+                          Válassz csomagpontot a térképen
+                        </button>
+                      )}
                     </div>
-                    <div>
-                      <label className={labelCls}>Város *</label>
-                      <input type="text" required value={city} onChange={(e) => setCity(e.target.value)} className={inputCls} placeholder="Budapest" />
-                    </div>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className={labelCls}>Utca *</label>
-                      <input type="text" required value={street} onChange={(e) => setStreet(e.target.value)} className={inputCls} placeholder="Példa utca" />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Házszám *</label>
-                      <input type="text" required value={houseNumber} onChange={(e) => setHouseNumber(e.target.value)} className={inputCls} placeholder="12/A" />
-                    </div>
-                  </div>
+                  )}
                   <div>
                     <label className={labelCls}>Megjegyzés (opcionális)</label>
                     <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className={`${inputCls} resize-none`} placeholder="Pl. kapucsengő neve, emeleti szállítás..." />
@@ -638,11 +1026,14 @@ export default function CheckoutPage() {
                           <label className={labelCls}>Adószám *</label>
                           <input
                             type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
                             required
                             value={billingTaxNumber}
-                            onChange={(e) => setBillingTaxNumber(e.target.value)}
+                            onChange={(e) => setBillingTaxNumber(formatHungarianTaxNumber(e.target.value))}
                             className={inputCls}
                             placeholder="12345678-1-11"
+                            maxLength={13}
                           />
                         </div>
                       ) : null}
@@ -689,16 +1080,45 @@ export default function CheckoutPage() {
                         name="shipping"
                         value={option.id}
                         checked={shippingMethod === option.id}
-                        onChange={() => setShippingMethod(option.id)}
+                        onChange={() => handleShippingMethodChange(option.id)}
                         className="h-4 w-4 accent-brand-800"
                       />
                       <div className="flex flex-1 items-center justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-sm font-bold text-slate-900">{option.label}</p>
                           <p className="text-xs text-red-950/60">{option.sub}</p>
+                          {shippingCarrierLogos[option.id].length > 0 ? (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {shippingCarrierLogos[option.id].map((carrier) => (
+                                <span
+                                  key={`${option.id}-${carrier.name}`}
+                                  className="inline-flex h-7 items-center rounded-md border border-brand-100 bg-white px-2 py-1"
+                                  title={carrier.name}
+                                >
+                                  <img
+                                    src={carrier.src}
+                                    alt={carrier.name}
+                                    className="h-4 max-w-[74px] object-contain"
+                                    onError={(e) => {
+                                      const img = e.currentTarget;
+                                      img.style.display = "none";
+                                      const fallback = img.nextElementSibling as HTMLElement | null;
+                                      if (fallback) fallback.style.display = "inline";
+                                    }}
+                                  />
+                                  <span
+                                    style={{ display: "none" }}
+                                    className="text-[10px] font-bold uppercase tracking-wide text-red-950/70"
+                                  >
+                                    {carrier.name}
+                                  </span>
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
                         <p className="shrink-0 text-sm font-bold text-brand-900">
-                          {option.price === 0 ? "Ingyenes" : `${option.price.toLocaleString("hu-HU")} Ft`}
+                          {formatShippingFee(shippingFeeForSubtotal(option.id, subtotal))}
                         </p>
                       </div>
                     </label>
@@ -708,9 +1128,18 @@ export default function CheckoutPage() {
 
               {/* Payment method */}
               <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
-                <h2 className="mb-5 text-base font-bold text-slate-900">Fizetési mód</h2>
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-base font-bold text-slate-900">Fizetési mód</h2>
+                  <img
+                    src="/simplepay-by-otp.png"
+                    alt="SimplePay by OTP Mobile"
+                    className="h-8 w-auto max-w-[180px] object-contain"
+                  />
+                </div>
                 <div className="space-y-3">
-                  {paymentOptions.map((option) => (
+                  {paymentOptions
+                    .filter((option) => enabledPaymentMethods.includes(option.id))
+                    .map((option) => (
                     <label
                       key={option.id}
                       className={`flex cursor-pointer items-start gap-4 rounded-xl border-2 p-4 transition ${
@@ -755,22 +1184,86 @@ export default function CheckoutPage() {
 
                 {payment === "transfer" ? (
                   <div className="mt-4 space-y-2 rounded-xl border border-brand-100 bg-brand-50/30 p-4 text-sm">
-                    <p className="font-bold text-slate-900">Bankszámla adatok</p>
+                    <p className="font-bold text-slate-900">Bankszámla adatok (EUR)</p>
                     <p className="text-red-950/70">Kedvezményezett: <span className="font-semibold text-slate-900">{BANK_DETAILS.name}</span></p>
-                    <p className="font-mono text-red-950/70">Számlaszám: <span className="font-semibold text-slate-900">{BANK_DETAILS.iban}</span></p>
-                    <p className="text-red-950/70">SWIFT: <span className="font-semibold text-slate-900">{BANK_DETAILS.swift}</span></p>
+                    <p className="font-mono text-red-950/70">Számlaszám: <span className="font-semibold text-slate-900">{BANK_DETAILS.euro.accountNumber}</span></p>
+                    <p className="text-red-950/70">Bank: <span className="font-semibold text-slate-900">{BANK_DETAILS.euro.bank}</span></p>
+                    <p className="font-mono text-red-950/70">BIC: <span className="font-semibold text-slate-900">{BANK_DETAILS.euro.bic}</span></p>
+                    <p className="font-mono text-red-950/70">IBAN: <span className="font-semibold text-slate-900">{BANK_DETAILS.euro.iban}</span></p>
                     <p className="text-xs text-red-950/50">Közleménybe kérjük tüntesd fel a rendelési számodat.</p>
                   </div>
                 ) : null}
 
-                {payment === "cod" ? (
-                  <div className="mt-4 rounded-xl border border-brand-100 bg-brand-50/30 p-4 text-sm space-y-2">
-                    <p className="font-bold text-slate-900">Utánvét információ</p>
-                    <p className="text-red-950/70">A megrendelt termékek kifizetése <strong>készpénzzel vagy bankkártyával</strong> a csomag átvételekor történik. Az utánvétes fizetési kezelési költsége: <strong>690 Ft</strong>.</p>
-                    <p className="text-red-950/70">Munkanapokon a <strong>14 óráig</strong> leadott megrendeléseket még aznap indítjuk. Szállítóink (GLS és Magyar Posta) a csomagindítás utáni munkanapon kézbesítik a küldeményeket, melyekről SMS-ben vagy emailben értesítést is küldenek.</p>
-                  </div>
-                ) : null}
               </div>
+                </>
+              ) : (
+                <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-base font-bold text-slate-900">Rendelés összesítő</h2>
+                    <button
+                      type="button"
+                      onClick={() => setCheckoutStep("details")}
+                      className="rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-bold text-brand-900 transition hover:bg-brand-50"
+                    >
+                      Vissza az adatokhoz
+                    </button>
+                  </div>
+
+                  <div className="mt-5 space-y-4 text-sm">
+                    <div className="rounded-xl border border-brand-100 bg-brand-50/30 p-4">
+                      <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Vásárló</p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {buyerType === "individual" ? name : `${companyName} (${contactName})`}
+                      </p>
+                      <p className="text-red-950/70">{normalizeEmail(email)}</p>
+                      <p className="text-red-950/70">{phone}</p>
+                    </div>
+
+                    <div className="rounded-xl border border-brand-100 bg-brand-50/30 p-4">
+                      <p className="text-xs font-bold uppercase tracking-wider text-brand-700">
+                        {isPickupShipping ? "Csomagpont átvétel" : "Szállítási cím"}
+                      </p>
+                      <p className="mt-1 text-slate-900">
+                        {isPickupShipping && selectedPickupPoint
+                          ? `${selectedPickupPoint.name} — ${formatPickupShippingAddress(selectedPickupPoint)}`
+                          : `${zip} ${city}, ${street} ${houseNumber}`}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-brand-100 bg-brand-50/30 p-4">
+                      <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Számlázás</p>
+                      {diffBilling ? (
+                        <>
+                          <p className="mt-1 text-slate-900">{billingName}</p>
+                          {buyerType === "company" ? (
+                            <p className="text-red-950/70">Adószám: {billingTaxNumber}</p>
+                          ) : null}
+                          <p className="text-red-950/70">{billingZip} {billingCity}, {billingStreet} {billingHouseNumber}</p>
+                        </>
+                      ) : (
+                        <p className="mt-1 text-red-950/70">A számlázási cím megegyezik a szállítási címmel.</p>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-brand-100 bg-brand-50/30 p-4">
+                      <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Szállítás és fizetés</p>
+                      <p className="mt-1 text-slate-900">
+                        {shippingOptions.find((option) => option.id === shippingMethod)?.label}
+                      </p>
+                      <p className="text-red-950/70">
+                        {paymentOptions.find((option) => option.id === payment)?.label}
+                      </p>
+                    </div>
+
+                    {notes.trim() ? (
+                      <div className="rounded-xl border border-brand-100 bg-brand-50/30 p-4">
+                        <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Megjegyzés</p>
+                        <p className="mt-1 whitespace-pre-wrap text-red-950/70">{notes}</p>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right: Sticky summary */}
@@ -788,6 +1281,9 @@ export default function CheckoutPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-900">{item.name}</p>
+                        {item.sampleTarget ? (
+                          <p className="text-xs text-brand-700">{getSampleTargetLabel(item.sampleTarget)}</p>
+                        ) : null}
                         <p className="text-xs text-red-950/50">Mennyiség: {item.quantity}</p>
                       </div>
                       <p className="shrink-0 text-sm font-bold text-brand-900">
@@ -814,7 +1310,57 @@ export default function CheckoutPage() {
                       {shipping === 0 ? "Ingyenes" : `${shipping.toLocaleString("hu-HU")} Ft`}
                     </span>
                   </div>
+                  {couponDiscount > 0 ? (
+                    <div className="flex justify-between">
+                      <span className="text-emerald-700 font-semibold">Kupon ({appliedCoupon?.code})</span>
+                      <span className="font-bold text-emerald-700">−{couponDiscount.toLocaleString("hu-HU")} Ft</span>
+                    </div>
+                  ) : null}
                 </div>
+
+                {/* Kupon mező */}
+                {!appliedCoupon ? (
+                  <div className="mt-4 space-y-1.5">
+                    <p className="text-xs font-semibold text-red-950/70">Kuponkód</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        placeholder="pl. NYAR2026"
+                        className="flex-1 rounded-xl border border-brand-200 px-3 py-2 text-sm outline-none transition focus:border-brand-600"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleApplyCoupon()}
+                        disabled={couponLoading}
+                        className="rounded-xl border border-brand-200 px-3 py-2 text-xs font-bold text-brand-900 transition hover:bg-brand-50 disabled:opacity-50"
+                      >
+                        {couponLoading ? "…" : "Érvényesítés"}
+                      </button>
+                    </div>
+                    {couponError ? <p className="text-xs text-rose-600 font-medium">{couponError}</p> : null}
+                    <p className="text-xs text-red-950/40">Leárazott termék esetén kupon nem érvényesíthető.</p>
+                  </div>
+                ) : (
+                  <div className="mt-4 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+                    <div>
+                      <p className="text-xs font-bold text-emerald-800">{appliedCoupon.code} – aktív</p>
+                      <p className="text-xs text-emerald-700">
+                        {appliedCoupon.discount_type === "percent"
+                          ? `${appliedCoupon.discount_value}% kedvezmény`
+                          : `${Number(appliedCoupon.discount_value).toLocaleString("hu-HU")} Ft kedvezmény`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setAppliedCoupon(null); setCouponCode(""); }}
+                      className="text-xs text-emerald-700 underline hover:no-underline"
+                    >
+                      Eltávolítás
+                    </button>
+                  </div>
+                )}
 
                 <div className="my-4 border-t border-brand-100" />
 
@@ -823,28 +1369,41 @@ export default function CheckoutPage() {
                   <span className="text-xl font-bold text-brand-900">{total.toLocaleString("hu-HU")} Ft</span>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={submitting || items.length === 0}
-                  className="btn-press mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-900 px-4 py-3.5 text-sm font-bold text-white shadow-md shadow-brand-200 transition hover:bg-brand-800 disabled:opacity-50"
-                >
-                  {submitting ? (
-                    <>
-                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                      </svg>
-                      Feldolgozás...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                      </svg>
-                      {payment === "card" ? "Fizetés véglegesítése" : "Rendelés elküldése"}
-                    </>
-                  )}
-                </button>
+                {checkoutStep === "details" ? (
+                  <button
+                    type="submit"
+                    disabled={items.length === 0}
+                    className="btn-press mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-900 px-4 py-3.5 text-sm font-bold text-white shadow-md shadow-brand-200 transition hover:bg-brand-800 disabled:opacity-50"
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                    Tovább a rendelés összesítőre
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={submitting || items.length === 0}
+                    className="btn-press mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-900 px-4 py-3.5 text-sm font-bold text-white shadow-md shadow-brand-200 transition hover:bg-brand-800 disabled:opacity-50"
+                  >
+                    {submitting ? (
+                      <>
+                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                        </svg>
+                        Feldolgozás...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                        {payment === "card" ? "Fizetés véglegesítése" : "Rendelés elküldése"}
+                      </>
+                    )}
+                  </button>
+                )}
 
                 <p className="mt-3 text-center text-xs text-red-950/40">
                   A rendelés leadásával elfogadod az ÁSZF-et és az Adatvédelmi nyilatkozatot. A végösszeg bruttó ár.
@@ -854,6 +1413,14 @@ export default function CheckoutPage() {
           </div>
         </form>
       </main>
+
+      <PickupPointSelector
+        open={pickupModalOpen}
+        onClose={() => setPickupModalOpen(false)}
+        onSelect={setSelectedPickupPoint}
+        selected={selectedPickupPoint}
+        searchZip={zip.trim().length === 4 ? zip : undefined}
+      />
     </div>
   );
 }

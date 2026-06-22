@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import SiteLogo from "@/components/SiteLogo";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -41,9 +42,10 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-[#fdf8f8] flex items-center justify-center px-4 py-16">
       <div className="w-full max-w-md animate-scale-in">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 h-12 w-12 rounded-2xl bg-gradient-to-br from-brand-900 to-brand-700 shadow-lg shadow-brand-200" />
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-800">HPVHelp Webshop</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">Regisztráció</h1>
+          <div className="mb-5 flex justify-center">
+            <SiteLogo size="md" />
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Regisztráció</h1>
           <p className="mt-1.5 text-sm text-red-950/60">
             Hozz létre ingyenes fiókot a vásárláshoz.
           </p>

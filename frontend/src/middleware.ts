@@ -1,11 +1,54 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+const ADMIN_LOGIN_RATE_WINDOW_MS = 15 * 60 * 1000;
+const ADMIN_LOGIN_RATE_MAX = 40;
+const ADMIN_LOGIN_RATE_PATHS = [
+  "/api/admin/security/prelogin",
+  "/api/admin/security/login-result",
+];
+
+type RateBucket = { count: number; resetAt: number };
+const rateStore = new Map<string, RateBucket>();
+
+function getClientIp(request: NextRequest): string {
+  const xff = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const xr = request.headers.get("x-real-ip")?.trim();
+  return xff || xr || "unknown";
+}
+
+function checkAdminLoginRateLimit(request: NextRequest): NextResponse | null {
+  const { pathname } = request.nextUrl;
+  if (!ADMIN_LOGIN_RATE_PATHS.some((p) => pathname.startsWith(p))) return null;
+
+  const ip = getClientIp(request);
+  const key = `${pathname}:${ip}`;
+  const now = Date.now();
+  const existing = rateStore.get(key);
+  const fresh = !existing || existing.resetAt <= now;
+  const bucket: RateBucket = fresh
+    ? { count: 1, resetAt: now + ADMIN_LOGIN_RATE_WINDOW_MS }
+    : { count: existing.count + 1, resetAt: existing.resetAt };
+
+  rateStore.set(key, bucket);
+
+  if (bucket.count <= ADMIN_LOGIN_RATE_MAX) return null;
+  return NextResponse.json(
+    {
+      ok: false,
+      error:
+        "Túl sok bejelentkezési kísérlet. Kérlek várj 15 percet, majd próbáld újra.",
+    },
+    { status: 429 }
+  );
+}
+
 const BYPASS_PATHS = [
   "/maintenance",
   "/aszf",
   "/adatvedelmi",
   "/admin",
+  "/api",
   "/_next",
   "/favicon",
   "/bankcards",
@@ -20,6 +63,9 @@ const MAINTENANCE_KEY_QUERY = "maintenance_key";
 export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
   const response = NextResponse.next();
+
+  const rateLimitResponse = checkAdminLoginRateLimit(request);
+  if (rateLimitResponse) return rateLimitResponse;
 
   // Karbantartói előnézet cookie beállítása/törlése kulcs alapján
   const previewParam = searchParams.get(MAINTENANCE_PREVIEW_QUERY);

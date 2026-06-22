@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { billingAddressDisplay, billingNameDisplay } from "@/lib/order-billing";
+import { formatOrderPublicId } from "@/lib/order-display-id";
 import { supabase } from "@/lib/supabase";
+import SiteLogo from "@/components/SiteLogo";
 import type { Database } from "@/types/supabase";
 
 type Order = Database["public"]["Tables"]["orders"]["Row"];
@@ -105,10 +108,7 @@ export default function OrderDetailsPage() {
             </svg>
             Rendeléseim
           </Link>
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-brand-900 to-brand-700 shadow-sm" />
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-900">HPVHelp Webshop</p>
-          </div>
+          <SiteLogo withLink={false} size="md" />
         </div>
       </header>
 
@@ -139,9 +139,7 @@ export default function OrderDetailsPage() {
                   <p className="mt-0.5 text-sm text-emerald-700">
                     {paymentParam === "transfer"
                       ? "Kérjük utald át a végösszeget a megadott bankszámlára. A rendelési számot tüntesd fel közleménynek."
-                      : paymentParam === "cod"
-                        ? "A fizetés a futárnak történik a kézbesítéskor. Hamarosan felvesszük veled a kapcsolatot."
-                        : "Köszönjük a rendelésed! Hamarosan felvesszük veled a kapcsolatot."}
+                      : "Köszönjük a rendelésed! Hamarosan felvesszük veled a kapcsolatot."}
                   </p>
                 </div>
               </div>
@@ -156,7 +154,9 @@ export default function OrderDetailsPage() {
                     <div>
                       <p className="text-xs font-bold uppercase tracking-widest text-brand-700">Rendelés</p>
                       <h1 className="mt-1 text-2xl font-bold text-slate-900">Rendelés részletei</h1>
-                      <p className="mt-1 font-mono text-xs text-slate-400">#{order.id}</p>
+                      <p className="mt-1 font-mono text-xs text-slate-400" title={order.id}>
+                        {formatOrderPublicId(order.id)}
+                      </p>
                     </div>
                     {st ? (
                       <span className={`rounded-full border px-3 py-1.5 text-sm font-bold ${st.color}`}>
@@ -229,22 +229,40 @@ export default function OrderDetailsPage() {
                   <h2 className="mb-4 text-base font-bold text-slate-900">Szállítási adatok</h2>
                   <div className="space-y-3 text-sm">
                     {[
-                      { label: "Név", value: order.shipping_name },
-                      { label: "E-mail", value: orderExtra.shipping_email },
-                      { label: "Telefon", value: order.shipping_phone },
-                      { label: "Cím", value: order.shipping_address },
+                      { label: "Szállítási név", value: order.shipping_name },
+                      { label: "Telefonszám", value: order.shipping_phone },
+                      { label: "E-mail", value: order.shipping_email ?? orderExtra.shipping_email },
+                      { label: "Szállítási cím", value: order.shipping_address },
                     ].map(({ label, value }) => value ? (
                       <div key={label}>
                         <p className="text-xs font-semibold text-red-950/50">{label}</p>
                         <p className="mt-0.5 text-slate-900">{value}</p>
                       </div>
                     ) : null)}
-                    {order.notes ? (
-                      <div>
-                        <p className="text-xs font-semibold text-red-950/50">Megjegyzés</p>
-                        <p className="mt-0.5 text-slate-900">{order.notes}</p>
+                  </div>
+                </div>
+
+                {order.notes?.trim() ? (
+                  <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
+                    <h2 className="mb-4 text-base font-bold text-slate-900">Megjegyzés a rendeléshez</h2>
+                    <p className="whitespace-pre-wrap text-sm text-slate-900">{order.notes}</p>
+                  </div>
+                ) : null}
+
+                <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
+                  <h2 className="mb-4 text-base font-bold text-slate-900">Számlázási adatok</h2>
+                  <div className="space-y-3 text-sm">
+                    {[
+                      { label: "Számlázási név", value: billingNameDisplay(order) },
+                      { label: "Számlázási adószám", value: order.billing_tax_number },
+                      { label: "Számlázási cím", value: billingAddressDisplay(order) },
+                      { label: "Cég és kapcsolattartó (szállításhoz)", value: order.billing_company_contact },
+                    ].map(({ label, value }) => value?.trim() ? (
+                      <div key={label}>
+                        <p className="text-xs font-semibold text-red-950/50">{label}</p>
+                        <p className="mt-0.5 text-slate-900">{value}</p>
                       </div>
-                    ) : null}
+                    ) : null)}
                   </div>
                 </div>
 
@@ -254,7 +272,7 @@ export default function OrderDetailsPage() {
                     <p className="mb-2 font-bold text-slate-900">Banki átutalás adatok</p>
                     <p className="text-red-950/70">Kedvezményezett: <span className="font-semibold text-slate-900">Sunmed Kft.</span></p>
                     <p className="mt-1 font-mono text-xs text-red-950/70">Számlaszám: <span className="font-semibold">10918001-00000124-71950001</span></p>
-                    <p className="mt-1 text-red-950/70">Közlemény: <span className="font-semibold text-slate-900">#{order.id.slice(0, 8)}</span></p>
+                    <p className="mt-1 text-red-950/70">Közlemény: <span className="font-semibold text-slate-900">{formatOrderPublicId(order.id)}</span></p>
                   </div>
                 ) : null}
 

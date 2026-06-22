@@ -1,7 +1,8 @@
 import Link from "next/link";
+import SiteLogo from "@/components/SiteLogo";
 
 export const metadata = {
-  title: "Adatvédelmi Tájékoztató – HPVHelp Webshop",
+  title: "Adatvédelmi Tájékoztató – HPVhelp",
 };
 
 export default function AdatvedelmiPage() {
@@ -9,9 +10,8 @@ export default function AdatvedelmiPage() {
     <div className="min-h-screen bg-[#fdf8f8] text-slate-900">
       <header className="border-b border-brand-100/80 bg-white/90 shadow-sm">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-brand-900 to-brand-700 shadow-md shadow-brand-200" />
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-900">HPVHelp Webshop</p>
+          <Link href="/" className="flex shrink-0 items-center">
+            <SiteLogo withLink={false} size="md" />
           </Link>
           <Link href="/" className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-white px-4 py-2 text-sm font-semibold text-red-950 shadow-sm transition hover:bg-brand-50">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -26,7 +26,7 @@ export default function AdatvedelmiPage() {
         <div className="mb-8">
           <p className="text-xs font-bold uppercase tracking-widest text-brand-700">Jogi dokumentum</p>
           <h1 className="font-serif mt-1 text-3xl font-bold italic text-brand-900">Adatvédelmi Tájékoztató</h1>
-          <p className="mt-2 text-sm text-red-950/50">Utoljára frissítve: 2026.01.18. 17:27</p>
+          <p className="mt-2 text-sm text-red-950/50">Utoljára frissítve: 2026.06.22.</p>
         </div>
 
         <div className="space-y-6 text-sm leading-relaxed text-slate-700">
@@ -39,28 +39,21 @@ export default function AdatvedelmiPage() {
               <li>www.hpvhelp.hu</li>
               <li>www.neotest.hu</li>
               <li>www.beldaganatszures.hu</li>
-              <li>www.gyorsteszt-aruhaz.hu</li>
-              <li>www.gyorsteszt-aruhaz.eu</li>
               <li>sunmed.hu</li>
               <li>m2-pk.hu</li>
               <li>m2pk.hu</li>
-              <li>virusgyorsteszt.hu</li>
-              <li>otthonigyorsteszt.hu</li>
-              <li>mankoshop.hu</li>
             </ul>
             <p className="mb-4">(a továbbiakban: Weboldalak vagy Webáruházak) keresztül nyújtott elektronikus kereskedelmi szolgáltatásokat igénybe vevő Ügyfél (a továbbiakban: Ügyfél) jogait és kötelezettségeit tartalmazza. (Adatkezelő és Ügyfél a továbbiakban együttesen: Felek).</p>
 
             <h3 className="font-bold text-slate-900 mb-3">Az Adatkezelő adatai</h3>
             <div className="grid gap-3 sm:grid-cols-2 mb-4">
               {[
-                ["Székhely", "7300 Komló, Ifjúság u. 35."],
-                ["Iroda", "7623 Pécs, Megyeri út 26. fszt. 108"],
+                ["Székhely", "7623 Pécs, Megyeri út 26. fszt. 109."],
+                ["Iroda", "7623 Pécs, Megyeri út 26. fszt. 109."],
                 ["Cégjegyzékszám", "02-09-081275"],
                 ["Közösségi adószám", "HU 11551373"],
                 ["Adatkezelési szám", "NAIH-83651/2015"],
-                ["Telefon", "+36 72 794 379"],
-                ["FAX", "+36 72 999 372"],
-                ["Mobil", "+36 30 865 7792"],
+                ["Telefon", "+36 30 865 7792"],
                 ["E-mail", "info@sunmed.hu"],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-xl border border-brand-50 bg-brand-50/30 px-4 py-2.5">
@@ -80,9 +73,10 @@ export default function AdatvedelmiPage() {
               </div>
               <div className="rounded-xl border border-brand-50 bg-brand-50/30 p-4">
                 <p className="font-bold text-brand-900 mb-1">Bankszámlaszám (EURO)</p>
-                <p>11600006-00000000-84794190</p>
-                <p>BIC: GIBAHUHB</p>
-                <p>IBAN: HU72116000060000000084794190</p>
+                <p>10410400-00000190-12029361</p>
+                <p>K&amp;H Bank</p>
+                <p>BIC: OKHBHUHB</p>
+                <p>IBAN: HU071041040000019012029361</p>
               </div>
             </div>
 
@@ -136,8 +130,9 @@ export default function AdatvedelmiPage() {
               <p>Az Adatkezelő tevékenységéhez az alábbi Adatfeldolgozók közreműködését és szolgáltatásait veszi igénybe:</p>
               <div className="rounded-xl border border-brand-50 bg-brand-50/30 p-4">
                 <p className="font-bold text-brand-900 mb-1">Tárhelyszolgáltató</p>
-                <p>A2 Hosting, PO BOX 2998, Ann Arbor, MI 48106, USA</p>
-                <p>VAT Number: EU528002111 · www.a2hosting.com</p>
+                <p>Vercel Inc., 440 N Barranca Ave #4133, Covina, CA 91723, USA · vercel.com</p>
+                <p className="mt-2 font-bold text-brand-900">Adatbázis-szolgáltató</p>
+                <p>Supabase Inc., 970 Toa Payoh North #07-04, Singapore 318992 · supabase.com</p>
               </div>
               <p><strong>A weblap látogatóinak adatai:</strong> Az Adatkezelő az általa üzemeltetett weboldalak látogatásakor sem a felhasználó IP címét, sem más személyes adatot nem rögzít.</p>
               <p>Az Adatkezelő által üzemeltetett weboldalak html kódja web analitikai mérések céljából független, külső szerverről érkező hivatkozásokat tartalmazhat. A webanalitikai szolgáltatásokat a Google Inc. végzi (Google Analytics). A cookie-k használatát a felhasználó saját számítógépéről törölni tudja, illetve a böngészőjében megtilthatja alkalmazásukat.</p>
@@ -162,7 +157,7 @@ export default function AdatvedelmiPage() {
             <h2 className="font-serif text-lg font-bold text-brand-900 mb-4">VI. Bankkártyás fizetés</h2>
             <div className="space-y-3">
               <p><strong>Bankkártyás fizetésnél (OTP Mobil – SimplePay):</strong> a Megrendelő a birtokában lévő bankkártya segítségével azonnal teljesítheti a fizetési kötelezettségét. A MEGRENDELÉS gombra kattintva az oldal 3-5 másodperc után átirányítja a Megrendelőt az OTP Mobil (SimplePay) fizető felületre, ahol megadhatja adatait és teljesítheti a fizetést.</p>
-              <p>Elfogadom és hozzájárulok, hogy a(z) Sunmed Kft. (7300 Komló, Ifjúság útja 35.) által a(z) hpvhelp.hu felhasználói adatbázisában tárolt alábbi személyes adataim átadásra kerüljenek az OTP Mobil Kft. (1143 Budapest, Hungária körút 17-19.), mint adatfeldolgozó részére.</p>
+              <p>Elfogadom és hozzájárulok, hogy a(z) Sunmed Kft. (7623 Pécs, Megyeri út 26. fszt. 109.) által a(z) hpvhelp.hu felhasználói adatbázisában tárolt alábbi személyes adataim átadásra kerüljenek az OTP Mobil Kft. (1143 Budapest, Hungária körút 17-19.), mint adatfeldolgozó részére.</p>
               <p>Az adatkezelő által továbbított adatok köre:</p>
               <ul className="ml-5 list-disc space-y-1">
                 <li>A Vásárló neve</li>
@@ -217,21 +212,10 @@ export default function AdatvedelmiPage() {
           </div>
 
           <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
-            <h2 className="font-serif text-lg font-bold text-brand-900 mb-4">Utánvét Ellenőr</h2>
-            <div className="space-y-3">
-              <p><strong>Adatkezelés leírása:</strong> a Sunmed Kft. az Érintett által vásárolt termék kiszállításának sikerességéről (rendelést átvette/nem vette át), valamint az Érintett (SHA256 algoritmussal) álnevesített e-mail címét az Utánvét Ellenőr szolgáltatásba elküldi, ahol Szolgáltató ezeket az adatokat eltárolja és azokat a szolgáltatást igénybe vevő más webáruházak részére azok manuális vagy automatizált lekérésére megküldi.</p>
-              <p><strong>Kezelt adatok köre:</strong> az Érintett e-mail címe, az Érintett által a Webáruházban bonyolított vásárlásainak száma és azokhoz kapcsolódó sikeresen kiszállított csomagok és sikertelenül kiszállítani megkísérelt csomagok száma.</p>
-              <p><strong>Adatkezelés célja:</strong> az Érintett által, szerződésszegéssel potenciálisan okozott károk bekövetkeztének elkerülése vagy azok minimalizálása azáltal, hogy az Utánvét Ellenőrben elérhető kódolt adatok felhasználásával a Honlap rendszere automatikusan olyan fizetési lehetőségeket kínál fel az Érintett részére, amelyek a korábbi megrendeléseinek a tényleges átvételétől függnek.</p>
-              <p><strong>Adatkezelés jogalapja:</strong> GDPR 6. cikk (1) bekezdés f) pontja alapján Adatkezelők jogos érdeke.</p>
-              <p><strong>Adatkezelés időtartama:</strong> Adatkezelők az adatfelvétel időpontjától számított 8 évig kezelik ezen adatokat.</p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
             <h2 className="font-serif text-lg font-bold text-brand-900 mb-4">Hírlevél adatkezelés</h2>
             <div className="space-y-3">
               <p>A www.hpvhelp.hu oldalon történő hírlevél feliratkozás során személyes adatokat ad meg, melyeket az Infotv., a GDPR, az Eker. tv., valamint a Grt. alapján kezelünk.</p>
-              <p><strong>1. Az adatkezelő személye:</strong> Sunmed Kft., Székhely: 7300 Komló, Ifjúság u. 35., Cégjegyzékszám: 02-09-081275, Közösségi adószám: HU 11551373</p>
+              <p><strong>1. Az adatkezelő személye:</strong> Sunmed Kft., Székhely: 7623 Pécs, Megyeri út 26. fszt. 109., Cégjegyzékszám: 02-09-081275, Közösségi adószám: HU 11551373</p>
               <p><strong>2. Az adataid megadása önkéntes.</strong> Nem vagy köteles a személyes adataid megadására, de azok hiányában nem tudunk termékeinkről, szolgáltatásainkról, ajánlatainkról tájékoztatni.</p>
               <p><strong>3. Az adatkezelés jogalapja:</strong> Hozzájárulás a GDPR 6. cikk (1) bekezdés a) pontja, az Eker. tv. 13/A. §-a, valamint a Grt. 6. § (1) bekezdése alapján.</p>
               <p><strong>4. A kezelt adatok köre:</strong> Név, e-mailcím, cím, telefonszám, kosár / rendelés tartalma.</p>

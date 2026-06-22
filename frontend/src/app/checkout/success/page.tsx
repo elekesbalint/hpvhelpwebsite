@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { formatOrderPublicId } from "@/lib/order-display-id";
 import { supabase } from "@/lib/supabase";
+import SiteLogo from "@/components/SiteLogo";
+import { BANK_DETAILS } from "@/lib/bank-details";
 import type { Database } from "@/types/supabase";
 
 type Order = Database["public"]["Tables"]["orders"]["Row"];
@@ -12,13 +15,6 @@ type OrderItem = Database["public"]["Tables"]["order_items"]["Row"];
 const paymentMethodLabel: Record<string, string> = {
   card: "Bankkártyás fizetés (SimplePay)",
   transfer: "Banki átutalás",
-  cod: "Utánvét",
-};
-
-const BANK_DETAILS = {
-  name: "Sunmed Kft.",
-  iban: "10918001-00000124-71950001",
-  swift: "OTPVHUHB",
 };
 
 function CheckoutSuccessContent() {
@@ -42,16 +38,15 @@ function CheckoutSuccessContent() {
     });
   }, [orderId]);
 
-  const shortId = orderId ? orderId.slice(0, 8).toUpperCase() : "—";
+  const publicOrderId = orderId ? formatOrderPublicId(orderId) : "—";
 
   return (
     <div className="min-h-screen bg-[#fdf8f8] text-slate-900">
       <header className="border-b border-brand-100/80 bg-white/80 shadow-sm backdrop-blur-md">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-brand-900 to-brand-700 shadow-sm" />
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-900">HPVHelp Webshop</p>
-          </div>
+          <Link href="/" className="inline-flex shrink-0 items-center outline-none ring-brand-600/30 transition hover:opacity-90 focus-visible:ring-2">
+            <SiteLogo withLink={false} size="md" />
+          </Link>
         </div>
       </header>
 
@@ -82,7 +77,7 @@ function CheckoutSuccessContent() {
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-base font-bold text-slate-900">Rendelés részletei</h2>
                 <span className="rounded-full border border-brand-200 bg-brand-50 px-3 py-1 font-mono text-xs font-bold text-brand-900">
-                  #{shortId}
+                  {publicOrderId}
                 </span>
               </div>
 
@@ -104,7 +99,7 @@ function CheckoutSuccessContent() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="mt-0.5 text-amber-500">•</span>
-                    Kérdés esetén hivatkozzon a rendelésszámra: <span className="font-bold">#{shortId}</span>
+                    Kérdés esetén hivatkozzon a rendelésszámra: <span className="font-bold">{publicOrderId}</span>
                   </li>
                 </ul>
               </div>
@@ -116,18 +111,14 @@ function CheckoutSuccessContent() {
                 <h2 className="mb-4 text-base font-bold text-slate-900">Banki átutalás adatok</h2>
                 <div className="rounded-xl border border-brand-100 bg-brand-50/30 p-4 text-sm space-y-2">
                   <p className="text-red-950/70">Kedvezményezett: <span className="font-semibold text-slate-900">{BANK_DETAILS.name}</span></p>
-                  <p className="font-mono text-red-950/70">Számlaszám: <span className="font-semibold text-slate-900">{BANK_DETAILS.iban}</span></p>
-                  <p className="text-red-950/70">SWIFT: <span className="font-semibold text-slate-900">{BANK_DETAILS.swift}</span></p>
-                  <p className="text-red-950/70">Közlemény: <span className="font-semibold text-slate-900">#{shortId}</span></p>
+                  <p className="font-mono text-red-950/70">Számlaszám (Ft): <span className="font-semibold text-slate-900">{BANK_DETAILS.forint.accountNumber}</span></p>
+                  <p className="font-mono text-red-950/70">Számlaszám (EUR): <span className="font-semibold text-slate-900">{BANK_DETAILS.euro.accountNumber}</span></p>
+                  <p className="text-red-950/70">Bank (EUR): <span className="font-semibold text-slate-900">{BANK_DETAILS.euro.bank}</span></p>
+                  <p className="font-mono text-red-950/70">BIC: <span className="font-semibold text-slate-900">{BANK_DETAILS.euro.bic}</span></p>
+                  <p className="font-mono text-red-950/70">IBAN: <span className="font-semibold text-slate-900">{BANK_DETAILS.euro.iban}</span></p>
+                  <p className="text-red-950/70">Közlemény: <span className="font-semibold text-slate-900">{publicOrderId}</span></p>
                   <p className="mt-2 text-xs text-red-950/50">Az összeg beérkezése után kezdjük el a rendelés feldolgozását.</p>
                 </div>
-              </div>
-            ) : null}
-
-            {payment === "cod" ? (
-              <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
-                <h2 className="mb-2 text-base font-bold text-slate-900">Utánvét információ</h2>
-                <p className="text-sm text-red-950/60">A fizetés a futárnak történik a kézbesítéskor. Hamarosan felvesszük Önnel a kapcsolatot a szállítás egyeztetéséhez.</p>
               </div>
             ) : null}
 

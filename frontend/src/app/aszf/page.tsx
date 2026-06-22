@@ -1,7 +1,9 @@
 import Link from "next/link";
+import SiteLogo from "@/components/SiteLogo";
+import ShippingFeesTable from "@/components/ShippingFeesTable";
 
 export const metadata = {
-  title: "Általános Szerződési Feltételek – HPVHelp Webshop",
+  title: "Általános Szerződési Feltételek – HPVhelp",
 };
 
 export default function AszfPage() {
@@ -9,9 +11,8 @@ export default function AszfPage() {
     <div className="min-h-screen bg-[#fdf8f8] text-slate-900">
       <header className="border-b border-brand-100/80 bg-white/90 shadow-sm">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-brand-900 to-brand-700 shadow-md shadow-brand-200" />
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-900">HPVHelp Webshop</p>
+          <Link href="/" className="flex shrink-0 items-center">
+            <SiteLogo withLink={false} size="md" />
           </Link>
           <Link href="/" className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-white px-4 py-2 text-sm font-semibold text-red-950 shadow-sm transition hover:bg-brand-50">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -38,7 +39,7 @@ export default function AszfPage() {
 
           <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
             <h2 className="font-serif text-lg font-bold text-brand-900 mb-4">Szolgáltató adatai</h2>
-            <p className="mb-3"><strong>Név:</strong> Sunmed Kft. &nbsp;<strong>Székhely:</strong> 7300 Komló, Ifjúság útja 35. &nbsp;<strong>Levelezési cím és Ügyfélszolgálat:</strong> 7623 Pécs, Megyeri út 26. fszt.108. &nbsp;<strong>Telefon:</strong> +36 72 794 379, +36 30 865 7792 &nbsp;<strong>Fax:</strong> +36 72 999 372 &nbsp;<strong>E-mail:</strong> info@sunmed.hu &nbsp;<strong>Cégjegyzékszám:</strong> 02-09-081275 &nbsp;<strong>Adószám:</strong> 11551373-2-02</p>
+            <p className="mb-3"><strong>Név:</strong> Sunmed Kft. &nbsp;<strong>Székhely:</strong> 7623 Pécs, Megyeri út 26. fszt. 109. &nbsp;<strong>Levelezési cím és Ügyfélszolgálat:</strong> 7623 Pécs, Megyeri út 26. fszt. 109. &nbsp;<strong>Telefon:</strong> +36 72 794 379, +36 30 865 7792 &nbsp;<strong>E-mail:</strong> info@sunmed.hu &nbsp;<strong>Cégjegyzékszám:</strong> 02-09-081275 &nbsp;<strong>Adószám:</strong> 11551373-2-02</p>
 
             <div className="grid gap-4 sm:grid-cols-2 mt-4">
               <div className="rounded-xl border border-brand-50 bg-brand-50/30 p-4 text-sm">
@@ -51,10 +52,10 @@ export default function AszfPage() {
               </div>
               <div className="rounded-xl border border-brand-50 bg-brand-50/30 p-4 text-sm">
                 <p className="font-bold text-brand-900 mb-2">EURO alapú fizetés</p>
-                <p>Számlaszám: <strong>11600006-00000000-84794190</strong></p>
-                <p>Erste Bank</p>
-                <p>BIC: GIBAHUHB</p>
-                <p>IBAN: HU72116000060000000084794190</p>
+                <p>Számlaszám: <strong>10410400-00000190-12029361</strong></p>
+                <p>K&amp;H Bank</p>
+                <p>BIC: OKHBHUHB</p>
+                <p>IBAN: HU071041040000019012029361</p>
               </div>
             </div>
             <p className="mt-3 text-sm"><strong>Adatkezelési nyilvántartási szám:</strong> NAIH-83651/2015.</p>
@@ -76,7 +77,7 @@ export default function AszfPage() {
                     <li>amennyiben a küldemény átvétele a Megrendelő hibájából meghiúsul, az ebből eredő többletköltséget a Szállítónak megtéríti. Az át nem vett, visszaküldött csomagok esetén a ki- és visszaszállítás díját (2.500.- Ft) a megrendelőre terheljük és kiszámlázzuk. A megrendelés újraküldését kizárólag az összeg ellenértékének előre történő átutalása esetén áll módunkban ismételten elindítani.</li>
                   </ul>
                   <p>1.5. A szerződés nyelve magyar.</p>
-                  <p>1.6. Ügyfélszolgálat: Sunmed Kft., pécsi telephely. Nyitva: munkanapokon 8-16 h között. Telefon: +36 72 794 379, +36 30 865 7792. Fax: +36 72 999 372. E-mail: info@sunmed.hu</p>
+                  <p>1.6. Ügyfélszolgálat: Sunmed Kft., 7623 Pécs, Megyeri út 26. fszt. 109. Nyitva: hétfőtől csütörtökig 8–16 óra között, pénteken 8–13 óra között. Telefon: +36 72 794 379, +36 30 865 7792. E-mail: info@sunmed.hu</p>
                 </div>
               ),
             },
@@ -135,7 +136,19 @@ export default function AszfPage() {
               title: "5. Szállítási és fizetési feltételek",
               content: (
                 <div className="space-y-3">
-                  <p>Webáruházaink megrendeléseit a <strong>GLS</strong> vagy <strong>Magyar Posta (MPL)</strong> szállítja házhoz. A kézbesítés munkanapokon történik, 8-17 óra között. (általában a reggeli, délelőtti órákban) Amennyiben ebben időszakban nem tartózkodik otthon és utánvétes fizetési módot választott, tehát a szállítónak kell kifizetnie a csomag árát, akkor érdemes szállítási címként a munkahelyi címet megadni vagy postapontra, postaautomatába kérni a kiszállítást.</p>
+                  <div className="rounded-xl border-2 border-brand-300 bg-brand-50/80 p-4 text-sm">
+                    <p className="font-bold text-brand-900">
+                      A 14 óráig leadott rendeléseket 1 munkanapon belül (aznap) elindítjuk, mely a következő
+                      munkanapon kiszállításra kerül (szabadság időszakában ez az idő hosszabb lehet).
+                    </p>
+                  </div>
+                  <p>
+                    Csomagjaink <strong>diszkrétek</strong>, azokon <strong>nincs feltüntetve a tényleges tartalom</strong>!
+                    A megrendeléseket – a megrendelőink szabad választása alapján – a <strong>GLS</strong> vagy a{" "}
+                    <strong>Magyar Posta MPL</strong> csomagszállító szállítja a rendelésben feltüntetett szállítási
+                    címre.
+                  </p>
+                  <p>Webáruházaink megrendeléseit a <strong>GLS</strong> vagy <strong>Magyar Posta (MPL)</strong> szállítja házhoz, csomagpontra vagy automatába. A kézbesítés munkanapokon történik, 8–17 óra között (általában a reggeli, délelőtti órákban). Amennyiben ebben az időszakban nem tartózkodik otthon, érdemes szállítási címként a munkahelyi címet megadni vagy postapontra, postaautomatába kérni a kiszállítást.</p>
                   <p>A Megrendelő elfogadja, hogy a megrendelés leadását követően, amennyiben házhozszállítást kért adatai továbbításra a lentebb felsorolt valamely logisztika szolgáltató rendszerébe.</p>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="rounded-xl border border-brand-50 bg-brand-50/30 p-4 text-sm">
@@ -154,38 +167,33 @@ export default function AszfPage() {
                       <p>Web: www.posta.hu</p>
                     </div>
                   </div>
-                  <p>A megrendelések leadása interneten, faxon időkorlát nélkül, telefonon munkaidőben történhet. A leadott megrendelések feldolgozása folyamatosan történik.</p>
+                  <p>A megrendelések leadása interneten időkorlát nélkül, telefonon munkaidőben történhet. A leadott megrendelések feldolgozása folyamatosan történik.</p>
                   <ul className="ml-5 list-disc space-y-1">
-                    <li>A 14 óráig leadott rendeléseket általában 1 munkanapon belül elindítjuk, mely a következő munkanapon kiszállításra kerül (szabadság időszakában ez az idő hosszabb lehet)</li>
                     <li>A szállító a csomag kétszeri kézbesítését kísérli meg. Az első sikertelen kézbesítés után a vevővel telefonon próbál egyeztetni a második kézbesítési kísérletről. Amennyiben a szállító mégsem tudja személyesen átadni a küldeményt, egy hivatalos értesítést küld elektronikusan vagy helyez el postaládájában.</li>
-                    <li>Az utánvétes fizetést kérjük, hogy csak abban az esetben válassza, ha a csomagot kiszállításkor át tudja venni. A kiszállításig le nem mondott és át nem vett, visszaküldött csomagok esetén a ki- és visszaszállítás díját (2.500.- Ft) a megrendelőnek kiszámlázzuk.</li>
+                    <li>A kiszállításig le nem mondott és át nem vett, visszaküldött csomagok esetén a ki- és visszaszállítás díját (2.500.- Ft) a megrendelőnek kiszámlázzuk.</li>
                   </ul>
-                  <p><strong>Szállítási és csomagolási díjak:</strong></p>
+                  <p><strong>Magyarországi szállítási díjak (webáruházi bankkártyás fizetés):</strong></p>
+                  <ShippingFeesTable className="rounded-xl border border-brand-100 bg-white p-4" />
                   <ul className="ml-5 list-disc space-y-1">
-                    <li>Utánvétes fizetés esetén bruttó <strong>690 Ft</strong> / csomag kezelés költséget számítunk fel a szállítási költségen felül.</li>
-                    <li>Utánvétes fizetés esetén a maximális rendelési összeg nem haladhatja meg a bruttó 300 000 Ft-ot.</li>
-                    <li>A szállítási költség bruttó 12.000 Ft / csomag EU országon belüli (nem magyarországi) szállítási címre.</li>
                     <li>Hűtést igénylő szállítás esetén minden csomag esetén a szállítás költsége bruttó 3500 Ft, melyet a Vevő felé jelez az Eladó.</li>
-                    <li>EU területen kívüli szállítási címre történő megrendelés esetén a Sunmed Kft. visszajelzi a megrendelőnek az aktuális szállítási díjat.</li>
                     <li>A házhozszállítás és csomagolás díja minden esetben külön kerül feltüntetésre a honlapon és a számlán.</li>
                     <li>A csomag feladását követően a Magyar Posta vagy a GLS információs emailt küld a regisztrált email címére.</li>
                     <li>Szélsőséges meleg (kánikulai) vagy hideg (fagyos) időjárási körülmények között az egészségügyi gyorstesztek szállítása kültéri csomagautomatákba minőségbiztosítási okok miatt nem lehetséges.</li>
                   </ul>
                   <p><strong>Fizetési módok</strong></p>
                   <p><strong>Online bankkártyás fizetés (OTP Mobil – SimplePay):</strong> A Megrendelő a birtokában lévő bankkártya segítségével azonnal teljesítheti a fizetési kötelezettségét. A MEGRENDELÉS gombra kattintva az oldal 3-5 másodperc után átirányítja a Megrendelőt az OTP Mobil (SimplePay) fizető felületre, ahol megadhatja adatait és teljesítheti a fizetést.</p>
-                  <p>Elfogadom és hozzájárulok, hogy a(z) Sunmed Kft. (7300 Komló, Ifjúság útja 35.) által a(z) hpvhelp.hu felhasználói adatbázisában tárolt alábbi személyes adataim átadásra kerüljenek az OTP Mobil Kft. (1143 Budapest, Hungária körút 17-19.), mint adatfeldolgozó részére.</p>
+                  <p>Elfogadom és hozzájárulok, hogy a(z) Sunmed Kft. (7623 Pécs, Megyeri út 26. fszt. 109.) által a(z) hpvhelp.hu felhasználói adatbázisában tárolt alábbi személyes adataim átadásra kerüljenek az OTP Mobil Kft. (1143 Budapest, Hungária körút 17-19.), mint adatfeldolgozó részére.</p>
                   <p>Az adatkezelő által továbbított adatok köre: A Vásárló neve, e-mail címe, telefonszáma, a megrendelés végösszege.</p>
                   <p>Az adatfeldolgozó által végzett adatfeldolgozási tevékenység részletei: <a href="https://simplepay.hu/vasarlo-aff" target="_blank" rel="noopener noreferrer" className="text-brand-800 underline underline-offset-2">simplepay.hu/vasarlo-aff</a></p>
                   <p><strong>Átutalás:</strong></p>
                   <ul className="ml-5 list-disc space-y-1">
                     <li>Számlaszámunk: 10918001-00000124-71950001 (Ft alapú utalás esetére)</li>
-                    <li>Számlaszámunk: 11600006-00000000-84794190 (EURO alapú utalás esetére)</li>
-                    <li>EURO utaláshoz: BIC: GIBAHUHB · IBAN: HU72116000060000000084794190</li>
+                    <li>Számlaszámunk: 10410400-00000190-12029361 (EURO alapú utalás esetére)</li>
+                    <li>EURO utaláshoz: BIC: OKHBHUHB · IBAN: HU071041040000019012029361 (K&amp;H Bank)</li>
                     <li>Számlavezető bank: UniCredit Bank Hungary Zrt., 1054 Budapest, Szabadság tér 5-6.</li>
                     <li>A számla tulajdonosa: Sunmed Kft.</li>
                     <li><strong>Kérjük, a megrendelés azonosító számát tüntesse fel a közleményben!</strong></li>
                   </ul>
-                  <p><strong>Utánvételes fizetés:</strong> Utánvéttel történő készpénzes fizetés esetében a Vevő a kézbesítő futárnak készpénzben fizeti meg a termék vételárát és a szállítási költséget maximum bruttó 300 000.-Ft értékhatárig. A futárnál is fizethet bankkártyával, de ez az eset is utánvételes fizetési módnak számít. Utánvétes fizetés esetén bruttó <strong>690 Ft</strong> / csomag kezelés költséget számítunk fel.</p>
                   <p>Jelen szerződés értelmezésekor szerződésszegésnek minősül az az eset, amikor a Vásárló nem veszi át az általa megrendelt Terméket, valamint elállási szándékát sem jelzi a Vállalkozás felé.</p>
                   <p>Amennyiben a Vásárló nem veszi át a megrendelt Terméket, úgy a Vállalkozás választása szerint azonnali hatállyal felmondja a szerződést, vagy akár harmadszor vagy negyedszer is megkísérli a Termék kiszállítását. A Vállalkozás fenntartja a jogot, hogy a sikertelen ki-, és visszaszállítási költséget kötbérként érvényesítse a Vásárlóval szemben.</p>
                 </div>
@@ -197,7 +205,17 @@ export default function AszfPage() {
               content: (
                 <div className="space-y-3">
                   <p>A megrendelt termék kézhez vételétől számított <strong>tizennégy (14) naptári napon belül</strong> a Vevőnek joga van elállni vásárlási szándékától. Ebben az esetben a cég köteles a termékért kifizetett vételárat visszatéríteni a vásárlónak, legkésőbb az elállást, illetve a termék, az eredeti számla visszaszolgáltatását követő tizennégy napon belül. A termék és a számla visszajuttatásának költsége a vevőt terheli.</p>
-                  <p>A Vevőnek a terméket tizennégy (14) naptári napon belül az ITT LETÖLTHETŐ termék-visszaküldési lappal együtt szükséges postázni a webáruház pécsi telephelyére: <strong>7623 Pécs, Megyeri út 26. fszt.108.</strong></p>
+                  <p>A Vevőnek a terméket tizennégy (14) naptári napon belül a{" "}
+                    <a
+                      href="/documents/termek-visszakuldesi-lap.pdf"
+                      download
+                      className="font-semibold text-brand-800 underline underline-offset-2 hover:text-brand-900"
+                    >
+                      letölthető termék-visszaküldési lappal
+                    </a>{" "}
+                    együtt szükséges postázni cégünk címére: <strong>7623 Pécs, Megyeri út 26. fszt. 109.</strong>{" "}
+                    (<Link href="/letoltheto-dokumentumok" className="text-brand-800 underline underline-offset-2 hover:text-brand-900">Letölthető dokumentumok</Link>)
+                  </p>
                   <p>A Megrendelőnek, amennyiben fogyasztónak minősül, 14 munkanapig jogában áll a megkötött szerződéstől elállni, mely esetben köteles a megrendelt terméket a Szállító részére hiánytalanul visszaküldeni. A 17/1999. (II. 5.) Kormányrendelet értelmében a visszaküldés költségei a Megrendelőt terhelik. A Szállító köteles a tesztek ellenértékét a csomag kézhezvételétől számítva 30 napon belül visszajuttatni a Megrendelőnek.</p>
                   <p>Az elállásra nyitva álló 14 munkanapos határidő attól a naptól kezdődik, amikor a Megrendelő a csomagot átvette.</p>
                   <p><strong>Az elállási jog gyakorlásának menete:</strong> A Sunmed Kft. rendelkezik Elállási/Felmondási nyilatkozattal, melyet a megrendelőinknek elállás/felmondás esetén elektronikusan elküldünk. A megrendelt terméket juttassa vissza cégünk címére a kitöltött nyilatkozattal. <strong>A terméket ne utánvéttel küldje vissza!</strong></p>

@@ -3,11 +3,15 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
+import { billingAddressDisplay, billingNameDisplay } from "@/lib/order-billing";
+import { formatOrderPublicId } from "@/lib/order-display-id";
 import { supabase } from "@/lib/supabase";
+import SiteLogo from "@/components/SiteLogo";
 import type { Database } from "@/types/supabase";
 
 type Order = Database["public"]["Tables"]["orders"]["Row"];
 type OrderItem = Database["public"]["Tables"]["order_items"]["Row"];
+type Coupon = Database["public"]["Tables"]["coupons"]["Row"];
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   pending:    { label: "Függőben",     color: "bg-amber-50 text-amber-700 border-amber-200" },
@@ -48,7 +52,8 @@ function DashboardContent() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-
+  const [activeCoupons, setActiveCoupons] = useState<Coupon[]>([]);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   useEffect(() => {
     void supabase.auth.getSession().then(async ({ data }) => {
@@ -75,8 +80,51 @@ function DashboardContent() {
         .eq("user_id", sessionUser.id)
         .order("created_at", { ascending: false });
       setOrders(orderRows ?? []);
+
+      // Aktív, elérhető kuponok lekérése
+      const now = new Date().toISOString();
+      const { data: couponRows } = await supabase
+        .from("coupons")
+        .select("*")
+        .eq("is_active", true)
+        .or(`valid_from.is.null,valid_from.lte.${now}`)
+        .or(`expires_at.is.null,expires_at.gte.${now}`)
+        .order("created_at", { ascending: false });
+
+      if (!couponRows || couponRows.length === 0) {
+        setActiveCoupons([]);
+      } else {
+        // Lekérjük az adott felhasználó eddigi felhasználásait ezekre a kuponokra
+        const couponIds = couponRows.map((c) => c.id);
+        const { data: usageRows } = await supabase
+          .from("coupon_usage")
+          .select("coupon_id")
+          .eq("user_id", sessionUser.id)
+          .in("coupon_id", couponIds);
+
+        // Megszámoljuk, hányszor használta az adott kupont
+        const usageCountById: Record<string, number> = {};
+        (usageRows ?? []).forEach((row) => {
+          usageCountById[row.coupon_id] = (usageCountById[row.coupon_id] ?? 0) + 1;
+        });
+
+        // Csak azokat a kuponokat mutatjuk, amelyeket még felhasználhat
+        const available = couponRows.filter((c) => {
+          if (c.max_uses_per_user == null) return true;
+          return (usageCountById[c.id] ?? 0) < c.max_uses_per_user;
+        });
+
+        setActiveCoupons(available);
+      }
     });
   }, [router]);
+
+  function handleCopyCode(code: string) {
+    void navigator.clipboard.writeText(code).then(() => {
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 2000);
+    });
+  }
 
   async function loadOrderItems(order: Order) {
     setSelectedOrder(order);
@@ -162,12 +210,8 @@ function DashboardContent() {
     <div className="min-h-screen bg-[#fdf8f8] text-slate-900">
       <header className="sticky top-0 z-30 border-b border-brand-100/80 bg-white/80 shadow-sm backdrop-blur-md animate-fade-down">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-brand-900 to-brand-700 shadow-md shadow-brand-200" />
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand-900">HPVHelp Webshop</p>
-              <p className="text-xs text-red-950/60">Professzionális bőrápolás egy helyen</p>
-            </div>
+          <Link href="/" className="inline-flex min-w-0 shrink-0 items-center">
+            <SiteLogo withLink={false} size="md" className="shrink-0" />
           </Link>
           <div className="inline-flex items-center gap-2 rounded-lg border border-brand-200 bg-white px-3 py-2 text-sm font-medium text-red-950 shadow-sm">
             <svg className="h-4 w-4 text-brand-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -256,6 +300,106 @@ function DashboardContent() {
                 </div>
               </div>
 
+              {activeCoupons.length > 0 ? (
+                <section>
+                  <div className="mb-3 flex items-center gap-2">
+                    <svg className="h-4 w-4 text-brand-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-brand-700">Elérhető kuponok</h2>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {activeCoupons.map((coupon) => {
+                      const isCopied = copiedCode === coupon.code;
+                      const expiresLabel = coupon.expires_at
+                        ? `Lejár: ${new Date(coupon.expires_at).toLocaleDateString("hu-HU")}`
+                        : null;
+                      const discountLabel = coupon.discount_type === "percent"
+                        ? `${coupon.discount_value}% kedvezmény`
+                        : `${Number(coupon.discount_value).toLocaleString("hu-HU")} Ft kedvezmény`;
+
+                      return (
+                        <div
+                          key={coupon.id}
+                          className="relative overflow-hidden rounded-2xl border border-brand-200 bg-gradient-to-br from-brand-900 to-brand-800 p-5 shadow-md shadow-brand-200/40"
+                        >
+                          {/* Dekoratív körök */}
+                          <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/5" />
+                          <div className="pointer-events-none absolute -bottom-8 -left-4 h-28 w-28 rounded-full bg-white/5" />
+
+                          <div className="relative">
+                            <p className="text-xs font-bold uppercase tracking-widest text-brand-300">Kedvezmény</p>
+                            <p className="mt-1 text-2xl font-bold text-white">{discountLabel}</p>
+                            {coupon.description ? (
+                              <p className="mt-1 text-xs text-white/60">{coupon.description}</p>
+                            ) : null}
+
+                            <div className="mt-4 flex items-center gap-2">
+                              <div className="flex-1 rounded-xl border border-dashed border-white/30 bg-white/10 px-3 py-2 text-center">
+                                <span className="font-mono text-base font-bold tracking-widest text-white">{coupon.code}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyCode(coupon.code)}
+                                className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition ${
+                                  isCopied
+                                    ? "bg-emerald-500 text-white"
+                                    : "bg-white text-brand-900 hover:bg-brand-50"
+                                }`}
+                              >
+                                {isCopied ? (
+                                  <>
+                                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    Másolva!
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                                    </svg>
+                                    Másolás
+                                  </>
+                                )}
+                              </button>
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              {coupon.min_order_amount ? (
+                                <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-semibold text-white/70">
+                                  Min. {Number(coupon.min_order_amount).toLocaleString("hu-HU")} Ft
+                                </span>
+                              ) : null}
+                              {expiresLabel ? (
+                                <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-semibold text-white/70">
+                                  {expiresLabel}
+                                </span>
+                              ) : null}
+                              <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-semibold text-white/70">
+                                Leárazott terméknél nem érvényes
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3">
+                    <Link
+                      href="/"
+                      className="inline-flex items-center gap-2 rounded-xl bg-brand-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-800"
+                    >
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/>
+                        <path d="M3 4h2l2.4 11.2a2 2 0 002 1.6h7.6a2 2 0 002-1.6L21 7H7"/>
+                      </svg>
+                      Vásárlás most
+                    </Link>
+                  </div>
+                </section>
+              ) : null}
+
               <section className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className="text-base font-bold text-slate-900">Legutóbbi rendelések</h2>
@@ -278,7 +422,7 @@ function DashboardContent() {
                       return (
                         <div key={order.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-100 p-4 transition hover:bg-brand-50/30">
                           <div>
-                            <p className="font-mono text-xs text-slate-400">#{order.id.slice(0, 8)}…</p>
+                            <p className="font-mono text-xs text-slate-400">{formatOrderPublicId(order.id)}</p>
                             <p className="text-sm font-semibold text-slate-900">
                               {new Date(order.created_at).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })}
                             </p>
@@ -304,7 +448,9 @@ function DashboardContent() {
               {selectedOrder ? (
                 <div className="space-y-4">
                   <button
-                    onClick={() => setSelectedOrder(null)}
+                    onClick={() => {
+                      setSelectedOrder(null);
+                    }}
                     className="btn-press inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-white px-4 py-2 text-sm font-medium text-red-950 shadow-sm transition hover:bg-brand-50"
                   >
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -317,18 +463,49 @@ function DashboardContent() {
                     <h3 className="text-base font-bold text-slate-900">Rendelés részletei</h3>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2">
                       {[
-                        { label: "Azonosító", value: <span className="font-mono text-xs">{selectedOrder.id}</span> },
+                        {
+                          label: "Azonosító",
+                          value: (
+                            <span className="font-mono text-sm font-semibold text-slate-900" title={selectedOrder.id}>
+                              {formatOrderPublicId(selectedOrder.id)}
+                            </span>
+                          ),
+                        },
                         { label: "Dátum", value: new Date(selectedOrder.created_at).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" }) },
                         { label: "Szállítási név", value: selectedOrder.shipping_name ?? "—" },
                         { label: "Telefonszám", value: selectedOrder.shipping_phone ?? "—" },
+                        { label: "E-mail", value: selectedOrder.shipping_email?.trim() ?? "—" },
                         { label: "Szállítási cím", value: selectedOrder.shipping_address ?? "—" },
-                        { label: "Megjegyzés", value: selectedOrder.notes ?? "—" },
                       ].map(({ label, value }) => (
                         <div key={label} className="rounded-xl border border-brand-50 bg-brand-50/30 px-4 py-3">
                           <p className="text-xs font-semibold uppercase tracking-widest text-brand-700">{label}</p>
                           <p className="mt-0.5 text-sm font-medium text-slate-900">{value}</p>
                         </div>
                       ))}
+                    </div>
+
+                    {selectedOrder.notes?.trim() ? (
+                      <div className="mt-4 rounded-xl border border-brand-100 bg-white px-4 py-4 shadow-sm">
+                        <p className="text-xs font-semibold uppercase tracking-widest text-brand-700">Megjegyzés a rendeléshez</p>
+                        <p className="mt-2 whitespace-pre-wrap text-sm font-medium text-slate-900">{selectedOrder.notes}</p>
+                      </div>
+                    ) : null}
+
+                    <div className="mt-4 rounded-xl border border-brand-100 bg-white px-4 py-4">
+                      <p className="text-xs font-semibold uppercase tracking-widest text-brand-700">Számlázási adatok</p>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        {[
+                          { label: "Számlázási név", value: billingNameDisplay(selectedOrder) },
+                          { label: "Számlázási adószám", value: selectedOrder.billing_tax_number },
+                          { label: "Számlázási cím", value: billingAddressDisplay(selectedOrder) },
+                          { label: "Cég és kapcsolattartó (szállításhoz)", value: selectedOrder.billing_company_contact },
+                        ].map(({ label, value }) => value?.trim() ? (
+                          <div key={label} className="rounded-xl border border-brand-50 bg-brand-50/30 px-4 py-3">
+                            <p className="text-xs font-semibold uppercase tracking-widest text-brand-700">{label}</p>
+                            <p className="mt-0.5 text-sm font-medium text-slate-900">{value}</p>
+                          </div>
+                        ) : null)}
+                      </div>
                     </div>
 
                     <div className="mt-6">
@@ -349,6 +526,21 @@ function DashboardContent() {
                               </span>
                             </div>
                           ))}
+                          {Number(selectedOrder.discount) > 0 ? (
+                            <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                              <span className="text-sm font-semibold text-emerald-800">
+                                Kupon kedvezmény
+                                {selectedOrder.coupon_code ? (
+                                  <span className="ml-2 rounded-full border border-emerald-300 bg-white px-2 py-0.5 font-mono text-xs font-bold text-emerald-700">
+                                    {selectedOrder.coupon_code}
+                                  </span>
+                                ) : null}
+                              </span>
+                              <span className="text-sm font-bold text-emerald-700">
+                                −{Number(selectedOrder.discount).toLocaleString("hu-HU")} Ft
+                              </span>
+                            </div>
+                          ) : null}
                           <div className="flex items-center justify-between rounded-xl bg-brand-50 px-4 py-3">
                             <span className="text-sm font-bold text-red-950">Végösszeg</span>
                             <span className="text-base font-bold text-brand-900">
@@ -379,7 +571,7 @@ function DashboardContent() {
                             className="animate-fade-up card-hover flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-brand-100 bg-white p-5 shadow-sm"
                           >
                             <div>
-                              <p className="font-mono text-xs text-slate-400">#{order.id.slice(0, 8)}…</p>
+                              <p className="font-mono text-xs text-slate-400">{formatOrderPublicId(order.id)}</p>
                               <p className="mt-0.5 text-sm font-semibold text-slate-900">
                                 {new Date(order.created_at).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })}
                               </p>

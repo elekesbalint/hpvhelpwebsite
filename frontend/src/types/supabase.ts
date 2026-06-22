@@ -3,6 +3,76 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      coupons: {
+        Row: {
+          id: string;
+          code: string;
+          discount_type: "percent" | "fixed";
+          discount_value: number;
+          description: string | null;
+          min_order_amount: number | null;
+          max_uses: number | null;
+          max_uses_per_user: number | null;
+          used_count: number;
+          valid_from: string | null;
+          expires_at: string | null;
+          applies_to_sale_items: boolean;
+          restricted_product_ids: string[] | null;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          discount_type: "percent" | "fixed";
+          discount_value: number;
+          description?: string | null;
+          min_order_amount?: number | null;
+          max_uses?: number | null;
+          max_uses_per_user?: number | null;
+          used_count?: number;
+          valid_from?: string | null;
+          expires_at?: string | null;
+          applies_to_sale_items?: boolean;
+          restricted_product_ids?: string[] | null;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          code?: string;
+          discount_type?: "percent" | "fixed";
+          discount_value?: number;
+          description?: string | null;
+          min_order_amount?: number | null;
+          max_uses?: number | null;
+          max_uses_per_user?: number | null;
+          used_count?: number;
+          valid_from?: string | null;
+          expires_at?: string | null;
+          applies_to_sale_items?: boolean;
+          restricted_product_ids?: string[] | null;
+          is_active?: boolean;
+        };
+        Relationships: [];
+      };
+      coupon_usage: {
+        Row: {
+          id: string;
+          coupon_id: string;
+          user_id: string;
+          order_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          coupon_id: string;
+          user_id: string;
+          order_id: string;
+          created_at?: string;
+        };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -33,7 +103,12 @@ export type Database = {
           id: string;
           name: string;
           slug: string;
+          subtitle: string | null;
+          parent_id: string | null;
           vat_rate: number | null;
+          discount_type: "percent" | "fixed" | null;
+          discount_value: number | null;
+          sort_order: number | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -42,7 +117,12 @@ export type Database = {
           id?: string;
           name: string;
           slug: string;
+          subtitle?: string | null;
+          parent_id?: string | null;
           vat_rate?: number | null;
+          discount_type?: "percent" | "fixed" | null;
+          discount_value?: number | null;
+          sort_order?: number | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -50,7 +130,12 @@ export type Database = {
         Update: {
           name?: string;
           slug?: string;
+          subtitle?: string | null;
+          parent_id?: string | null;
           vat_rate?: number | null;
+          discount_type?: "percent" | "fixed" | null;
+          discount_value?: number | null;
+          sort_order?: number | null;
           is_active?: boolean;
           updated_at?: string;
         };
@@ -62,10 +147,15 @@ export type Database = {
           category_id: string | null;
           name: string;
           slug: string;
+          sku: string | null;
           description: string | null;
           price: number;
           compare_at_price: number | null;
+          sale_starts_at: string | null;
+          sale_ends_at: string | null;
           vat_rate: number | null;
+          discount_type: "percent" | "fixed" | null;
+          discount_value: number | null;
           stock: number;
           is_active: boolean;
           image_url: string | null;
@@ -77,10 +167,15 @@ export type Database = {
           category_id?: string | null;
           name: string;
           slug: string;
+          sku?: string | null;
           description?: string | null;
           price: number;
           compare_at_price?: number | null;
+          sale_starts_at?: string | null;
+          sale_ends_at?: string | null;
           vat_rate?: number | null;
+          discount_type?: "percent" | "fixed" | null;
+          discount_value?: number | null;
           stock?: number;
           is_active?: boolean;
           image_url?: string | null;
@@ -91,10 +186,15 @@ export type Database = {
           category_id?: string | null;
           name?: string;
           slug?: string;
+          sku?: string | null;
           description?: string | null;
           price?: number;
           compare_at_price?: number | null;
+          sale_starts_at?: string | null;
+          sale_ends_at?: string | null;
           vat_rate?: number | null;
+          discount_type?: "percent" | "fixed" | null;
+          discount_value?: number | null;
           stock?: number;
           is_active?: boolean;
           image_url?: string | null;
@@ -109,6 +209,7 @@ export type Database = {
           status: "pending" | "paid" | "fulfilled" | "cancelled" | "refunded";
           subtotal: number;
           discount: number;
+          coupon_code: string | null;
           total: number;
           currency: string;
           payment_provider: string | null;
@@ -116,7 +217,21 @@ export type Database = {
           shipping_name: string | null;
           shipping_phone: string | null;
           shipping_address: string | null;
+          shipping_email: string | null;
+          shipping_method: string | null;
+          tracking_number: string | null;
+          shipping_carrier: string | null;
+          pickup_point_id: string | null;
+          pickup_point_name: string | null;
+          pickup_point_address: string | null;
+          pickup_point_provider: string | null;
+          pickup_point_meta: Json | null;
+          billing_name: string | null;
+          billing_tax_number: string | null;
+          billing_address: string | null;
+          billing_company_contact: string | null;
           notes: string | null;
+          natursoft_exported_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -126,6 +241,7 @@ export type Database = {
           status?: "pending" | "paid" | "fulfilled" | "cancelled" | "refunded";
           subtotal: number;
           discount?: number;
+          coupon_code?: string | null;
           total: number;
           currency?: string;
           payment_provider?: string | null;
@@ -133,7 +249,21 @@ export type Database = {
           shipping_name?: string | null;
           shipping_phone?: string | null;
           shipping_address?: string | null;
+          shipping_email?: string | null;
+          shipping_method?: string | null;
+          tracking_number?: string | null;
+          shipping_carrier?: string | null;
+          pickup_point_id?: string | null;
+          pickup_point_name?: string | null;
+          pickup_point_address?: string | null;
+          pickup_point_provider?: string | null;
+          pickup_point_meta?: Json | null;
+          billing_name?: string | null;
+          billing_tax_number?: string | null;
+          billing_address?: string | null;
+          billing_company_contact?: string | null;
           notes?: string | null;
+          natursoft_exported_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -141,6 +271,7 @@ export type Database = {
           status?: "pending" | "paid" | "fulfilled" | "cancelled" | "refunded";
           subtotal?: number;
           discount?: number;
+          coupon_code?: string | null;
           total?: number;
           currency?: string;
           payment_provider?: string | null;
@@ -148,7 +279,21 @@ export type Database = {
           shipping_name?: string | null;
           shipping_phone?: string | null;
           shipping_address?: string | null;
+          shipping_email?: string | null;
+          shipping_method?: string | null;
+          tracking_number?: string | null;
+          shipping_carrier?: string | null;
+          pickup_point_id?: string | null;
+          pickup_point_name?: string | null;
+          pickup_point_address?: string | null;
+          pickup_point_provider?: string | null;
+          pickup_point_meta?: Json | null;
+          billing_name?: string | null;
+          billing_tax_number?: string | null;
+          billing_address?: string | null;
+          billing_company_contact?: string | null;
           notes?: string | null;
+          natursoft_exported_at?: string | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -216,6 +361,37 @@ export type Database = {
         };
         Relationships: [];
       };
+      admin_login_attempts: {
+        Row: {
+          id: string;
+          email: string;
+          ip: string | null;
+          user_agent: string | null;
+          success: boolean;
+          reason: string | null;
+          alert_sent: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          ip?: string | null;
+          user_agent?: string | null;
+          success?: boolean;
+          reason?: string | null;
+          alert_sent?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          email?: string;
+          ip?: string | null;
+          user_agent?: string | null;
+          success?: boolean;
+          reason?: string | null;
+          alert_sent?: boolean;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -224,6 +400,10 @@ export type Database = {
         Returns: boolean;
       };
       decrement_product_stock_for_order: {
+        Args: { p_order_id: string };
+        Returns: void;
+      };
+      restore_product_stock_for_order: {
         Args: { p_order_id: string };
         Returns: void;
       };

@@ -32,6 +32,12 @@ export default function AdminActionsPage() {
     void loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    if (!error) return;
+    const timeout = window.setTimeout(() => setError(null), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [error]);
+
   const actionTypes = useMemo(() => Array.from(new Set(actions.map((a) => a.action_type))).sort(), [actions]);
   const entityTypes = useMemo(() => Array.from(new Set(actions.map((a) => a.entity_type))).sort(), [actions]);
 

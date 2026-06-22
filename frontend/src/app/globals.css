@@ -11,14 +11,33 @@
   --brand-light: #fee2e2;
 }
 
+html {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: "Inter", system-ui, sans-serif;
+  overflow-x: clip;
+  max-width: 100%;
 }
 
 h1, h2, h3, .font-serif {
   font-family: "Playfair Display", Georgia, serif;
+}
+
+/* Leaflet csomagpont térkép – egyedi ikonok, cluster számok */
+.pickup-cluster-icon,
+.pickup-provider-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.leaflet-marker-icon.pickup-cluster-icon {
+  margin-left: 0 !important;
+  margin-top: 0 !important;
 }
 
 /* ── Animations ─────────────────────────────────────────── */
@@ -76,3 +95,31 @@ h1, h2, h3, .font-serif {
 .stagger > *:nth-child(2) { animation-delay: 60ms; }
 .stagger > *:nth-child(3) { animation-delay: 120ms; }
 .stagger > *:nth-child(4) { animation-delay: 180ms; }
+
+/* ── Partnerek – vízszintes marquee ───────────────────────── */
+@keyframes partner-marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.partner-marquee-mask {
+  mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
+}
+
+.partner-marquee-track {
+  animation: partner-marquee 90s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .partner-marquee-track {
+    animation: none;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100% !important;
+    max-width: 56rem;
+    margin-left: auto;
+    margin-right: auto;
+    row-gap: 1.5rem;
+  }
+}

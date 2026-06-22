@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { sendCourierAssignedEmail } from "@/lib/order-status-email";
+import { billingAddressDisplay, billingNameDisplay } from "@/lib/order-billing";
+import { formatOrderPublicId } from "@/lib/order-display-id";
+import {
+  defaultLabelFilename,
+  downloadShippingLabelPdf,
+  orderCanCreateShippingLabel,
+  requestShippingLabel,
+} from "@/lib/shipping/admin-label-client";
+import { pickupProviderLabel, shippingMethodLabel } from "@/lib/shipping/carrier";
+import { orderEligibleForSimplePayRetry, startSimplePayPaymentForOrder } from "@/lib/simplepay-retry-client";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/supabase";
 
@@ -39,6 +48,18 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 
 const ALL_STATUSES: OrderStatus[] = ["pending", "paid", "fulfilled", "cancelled", "refunded"];
 
+type EmailApiResponse = { ok?: boolean; skipped?: string; detail?: string; error?: string };
+
+async function readEmailApiResponse(response: Response): Promise<EmailApiResponse> {
+  const raw = await response.text();
+  if (!raw.trim()) return {};
+  try {
+    return JSON.parse(raw) as EmailApiResponse;
+  } catch {
+    return { error: raw.slice(0, 300) };
+  }
+}
+
 export default function AdminOrderDetailsPage() {
   const params = useParams<{ id: string }>();
   const orderId = params.id;
@@ -46,6 +67,8 @@ export default function AdminOrderDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [retryPayLoading, setRetryPayLoading] = useState(false);
+  const [labelLoading, setLabelLoading] = useState(false);
   const [order, setOrder] = useState<Order | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
 
@@ -81,6 +104,18 @@ export default function AdminOrderDetailsPage() {
     void loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    if (!error) return;
+    const timeout = window.setTimeout(() => setError(null), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [error]);
+
+  useEffect(() => {
+    if (!success) return;
+    const timeout = window.setTimeout(() => setSuccess(null), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [success]);
+
   async function handleStatusChange(status: OrderStatus) {
     if (!order) return;
     if (status === "cancelled" || status === "refunded") {
@@ -103,9 +138,9 @@ export default function AdminOrderDetailsPage() {
       });
     }
 
-    if (status === "fulfilled") {
+    if (status === "fulfilled" && order.status !== "fulfilled") {
       const orderExtra = getOrderExtra(order);
-      let recipientEmail = orderExtra.shipping_email?.trim() ?? "";
+      let recipientEmail = (order.shipping_email ?? orderExtra.shipping_email)?.trim() ?? "";
       let recipientName = order.shipping_name?.trim() || "Vásárló";
 
       if (!recipientEmail) {
@@ -119,26 +154,29 @@ export default function AdminOrderDetailsPage() {
       }
 
       if (recipientEmail) {
-        const itemsText =
-          items
-            .map(
-              (item) =>
-                `${item.product_name} - ${item.quantity} db - ${Number(item.line_total).toLocaleString("hu-HU")} Ft`
-            )
-            .join("\n") || "A rendelés részletei a fiókodban érhetők el.";
-
-        await sendCourierAssignedEmail({
-          orderId: order.id,
-          toEmail: recipientEmail,
-          toName: recipientName,
-          orderDate: new Date(order.created_at).toLocaleString("hu-HU"),
-          paymentMethod: getPaymentLabel(order, orderExtra.payment_method),
-          total: `${Number(order.total).toLocaleString("hu-HU")} ${order.currency}`,
-          shippingName: order.shipping_name ?? recipientName,
-          shippingAddress: order.shipping_address ?? "—",
-          shippingPhone: order.shipping_phone ?? "—",
-          itemsText,
-        });
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (token) {
+          try {
+            const emailRes = await fetch("/api/email/courier-assigned", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ orderId: order.id }),
+            });
+            const emailJson = await readEmailApiResponse(emailRes);
+            if (!emailRes.ok || emailJson.ok === false) {
+              console.error("[admin/orders/id] courier email failed", emailJson);
+              setSuccess(`Rendelés státusza frissítve (futárnak átadva), de az email küldés nem sikerült: ${emailJson.error ?? emailJson.skipped ?? emailJson.detail ?? "ismeretlen hiba"}`);
+              await loadData();
+              return;
+            }
+          } catch (e) {
+            console.error("[admin/orders/id] courier email fetch error", e);
+          }
+        }
       } else {
         setSuccess("Rendelés státusza frissítve, de nem találtunk email címet az értesítéshez.");
         await loadData();
@@ -146,12 +184,53 @@ export default function AdminOrderDetailsPage() {
       }
     }
 
-    setSuccess("Rendelés státusza frissítve.");
+    setSuccess("Rendelés státusza frissítve. Futárnak átadva email elküldve.");
     await loadData();
   }
 
+  async function handleCreateShippingLabel() {
+    if (!order) return;
+    setError(null);
+    setSuccess(null);
+    setLabelLoading(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) {
+        setError("Nincs aktív admin munkamenet.");
+        return;
+      }
+      const json = await requestShippingLabel(order.id, token);
+      downloadShippingLabelPdf(json.pdfBase64, defaultLabelFilename(order.id, json.filename));
+      setSuccess(
+        `Címirat elkészült, rendelés státusza: Futárnak átadva (${json.carrier?.toUpperCase() ?? "futár"}${json.trackingNumber ? `, azonosító: ${json.trackingNumber}` : ""}).`
+      );
+      await loadData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Címirat generálás sikertelen.");
+    } finally {
+      setLabelLoading(false);
+    }
+  }
+
+  async function handleRetrySimplePayPayment() {
+    if (!order) return;
+    setError(null);
+    setSuccess(null);
+    setRetryPayLoading(true);
+    const result = await startSimplePayPaymentForOrder(order.id);
+    setRetryPayLoading(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setSuccess("SimplePay fizetőoldal megnyitása…");
+  }
+
+
   const st = order ? (statusConfig[order.status] ?? { label: order.status, color: "bg-slate-100 text-slate-600 border-slate-200" }) : null;
   const orderExtra = getOrderExtra(order);
+  const canCreateLabel = order ? orderCanCreateShippingLabel(order) : false;
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -188,7 +267,9 @@ export default function AdminOrderDetailsPage() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-brand-700">Rendelésszám</p>
-                  <p className="mt-1 font-mono text-sm text-slate-900">{order.id}</p>
+                  <p className="mt-1 font-mono text-sm font-semibold text-slate-900" title={order.id}>
+                    {formatOrderPublicId(order.id)}
+                  </p>
                 </div>
                 {st ? (
                   <span className={`rounded-full border px-3 py-1 text-sm font-bold ${st.color}`}>{st.label}</span>
@@ -202,7 +283,19 @@ export default function AdminOrderDetailsPage() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-red-950/50">Összeg</p>
-                  <p className="mt-0.5 text-sm font-bold text-brand-900">{Number(order.total).toLocaleString("hu-HU")} {order.currency}</p>
+                  <div className="mt-0.5 space-y-0.5">
+                    {Number(order.discount) > 0 ? (
+                      <p className="text-xs text-red-950/50">
+                        Részösszeg: {Number(order.subtotal).toLocaleString("hu-HU")} {order.currency}
+                      </p>
+                    ) : null}
+                    {order.coupon_code && Number(order.discount) > 0 ? (
+                      <p className="text-xs text-emerald-700 font-semibold">
+                        Kupon ({order.coupon_code}): −{Number(order.discount).toLocaleString("hu-HU")} {order.currency}
+                      </p>
+                    ) : null}
+                    <p className="text-sm font-bold text-brand-900">{Number(order.total).toLocaleString("hu-HU")} {order.currency}</p>
+                  </div>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-red-950/50">Fizetési mód</p>
@@ -231,6 +324,24 @@ export default function AdminOrderDetailsPage() {
                     </button>
                   ))}
                 </div>
+                {order.payment_provider === "simplepay" && orderEligibleForSimplePayRetry(order) ? (
+                  <div className="mt-3">
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-950">
+                      <p className="font-bold text-amber-900">Sikertelen vagy függőben lévő kártyás fizetés</p>
+                      <p className="mt-0.5 text-amber-900/90">
+                        A vásárló ugyanezen a rendelésen újra megnyithatja a SimplePay oldalt; adminként is elindíthatod helyette (pl. telefonos egyeztetés után).
+                      </p>
+                      <button
+                        type="button"
+                        disabled={retryPayLoading}
+                        onClick={() => void handleRetrySimplePayPayment()}
+                        className="mt-2 w-full rounded-lg border border-brand-700 bg-brand-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-brand-800 disabled:opacity-50 sm:w-auto"
+                      >
+                        {retryPayLoading ? "Indítás…" : "SimplePay fizetés újraindítása"}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -266,19 +377,67 @@ export default function AdminOrderDetailsPage() {
               <h2 className="mb-4 text-base font-bold text-slate-900">Szállítási adatok</h2>
               <div className="space-y-3 text-sm">
                 {[
-                  { label: "Név", value: order.shipping_name },
-                  { label: "Telefon", value: order.shipping_phone },
-                  { label: "E-mail", value: orderExtra.shipping_email },
-                  { label: "Cím", value: order.shipping_address },
-                  { label: "Megjegyzés", value: order.notes },
+                  { label: "Szállítási mód", value: shippingMethodLabel(order.shipping_method) },
+                  ...(order.pickup_point_name
+                    ? [
+                        { label: "Csomagpont", value: order.pickup_point_name },
+                        { label: "Szolgáltató", value: pickupProviderLabel(order.pickup_point_provider) },
+                        { label: "Csomagpont cím", value: order.pickup_point_address },
+                      ]
+                    : []),
+                  { label: "Szállítási név", value: order.shipping_name },
+                  { label: "Telefonszám", value: order.shipping_phone },
+                  { label: "E-mail", value: order.shipping_email ?? orderExtra.shipping_email },
+                  { label: "Szállítási cím", value: order.shipping_address },
+                  { label: "Csomagszám", value: order.tracking_number },
                 ].map(({ label, value }) => (
                   <div key={label}>
                     <p className="text-xs font-semibold text-red-950/50">{label}</p>
-                    <p className="mt-0.5 text-slate-900">{value ?? "—"}</p>
+                    <p className="mt-0.5 text-slate-900">{value?.trim() ? value : "—"}</p>
                   </div>
                 ))}
+                {canCreateLabel ? (
+                  <button
+                    type="button"
+                    disabled={labelLoading}
+                    onClick={() => void handleCreateShippingLabel()}
+                    className="mt-2 w-full rounded-xl border border-brand-700 bg-brand-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-800 disabled:opacity-50"
+                  >
+                    {labelLoading ? "Címirat készítése…" : "Címirat generálása (PDF)"}
+                  </button>
+                ) : (
+                  <p className="text-xs text-red-950/50">
+                    Automatikus címirat csak Posta/GLS/Csomagpont szállításnál érhető el.
+                  </p>
+                )}
               </div>
             </div>
+
+            {order.notes?.trim() ? (
+              <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
+                <h2 className="mb-4 text-base font-bold text-slate-900">Megjegyzés a rendeléshez</h2>
+                <p className="whitespace-pre-wrap text-sm text-slate-900">{order.notes}</p>
+              </div>
+            ) : null}
+
+            {true ? (
+              <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
+                <h2 className="mb-4 text-base font-bold text-slate-900">Számlázási adatok</h2>
+                <div className="space-y-3 text-sm">
+                  {[
+                    { label: "Számlázási név", value: billingNameDisplay(order) },
+                    { label: "Számlázási adószám", value: order.billing_tax_number },
+                    { label: "Számlázási cím", value: billingAddressDisplay(order) },
+                    { label: "Cég és kapcsolattartó (szállításhoz)", value: order.billing_company_contact },
+                  ].map(({ label, value }) => value?.trim() ? (
+                    <div key={label}>
+                      <p className="text-xs font-semibold text-red-950/50">{label}</p>
+                      <p className="mt-0.5 text-slate-900">{value}</p>
+                    </div>
+                  ) : null)}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

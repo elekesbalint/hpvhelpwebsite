@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "HPVHelp Webshop",
-  description: "Professzionális bőrápolás egy helyen – HPVHelp Webshop",
+  title: "HPVhelp",
+  description: "Szűrések, tesztek és étrend-kiegészítők – HPVhelp webáruház",
 };
 
 export default function RootLayout({
@@ -28,7 +28,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+      <body className="min-h-full flex min-w-0 flex-col overflow-x-clip" suppressHydrationWarning>
         {children}
       </body>
     </html>

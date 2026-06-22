@@ -22,7 +22,7 @@ async function rateLimitedFetch(url: string): Promise<Response> {
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   lastRequestAt = Date.now();
   return fetch(url, {
-    headers: { "User-Agent": "HPVHelp-Webshop/1.0 (address autocomplete)" },
+    headers: { "User-Agent": "HPVhelp-Webshop/1.0 (address autocomplete)" },
   });
 }
 

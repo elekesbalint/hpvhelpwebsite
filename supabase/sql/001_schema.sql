@@ -68,6 +68,11 @@ create table if not exists public.orders (
   shipping_name text,
   shipping_phone text,
   shipping_address text,
+  shipping_email text,
+  billing_name text,
+  billing_tax_number text,
+  billing_address text,
+  billing_company_contact text,
   notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

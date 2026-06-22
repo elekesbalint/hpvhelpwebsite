@@ -1,12 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import SiteLogo from "@/components/SiteLogo";
 
-export default function LoginPage() {
+function safeNextPath(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
+  return raw;
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,7 +45,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.replace("/");
+      router.replace(nextPath);
       router.refresh();
     } catch {
       setError("Hálózati hiba történt. Kérlek próbáld újra.");
@@ -50,9 +58,10 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#fdf8f8] flex items-center justify-center px-4 py-16">
       <div className="w-full max-w-md animate-scale-in">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 h-12 w-12 rounded-2xl bg-gradient-to-br from-brand-900 to-brand-700 shadow-lg shadow-brand-200" />
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-brand-800">HPVHelp Webshop</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">Bejelentkezés</h1>
+          <div className="mb-5 flex justify-center">
+            <SiteLogo size="md" />
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Bejelentkezés</h1>
           <p className="mt-1.5 text-sm text-red-950/60">Üdvözlünk!</p>
         </div>
 
@@ -126,5 +135,19 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#fdf8f8] flex items-center justify-center px-4 py-16">
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-brand-200 border-t-brand-800" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
