@@ -97,7 +97,7 @@ export function buildNatursoftExportOrders(
 export function buildNatursoftOrdersXml(packages: NatursoftExportOrder[]): string {
   const blocks = packages.map(({ order, lines }) => {
     const publicId = formatOrderPublicId(order.id);
-    const created = new Date(order.created_at).toISOString().slice(0, 19).replace("T", " ");
+    const created = new Date(order.created_at).toLocaleDateString("sv-SE", { timeZone: "Europe/Budapest" });
     const billingName = billingNameDisplay(order);
     const billingAddress = billingAddressDisplay(order);
     const shippingAddress =
