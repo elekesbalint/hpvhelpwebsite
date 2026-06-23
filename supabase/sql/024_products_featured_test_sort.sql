@@ -1,4 +1,4 @@
--- Kiemelt tesztek sorrendje a webshopban (Microbiom → STI → Allin1 → Combo3 → Combo2 → Combo1 → Full HPV)
+-- Kiemelt tesztek sorrendje a webshopban (Full HPV → STI → Microbiom → kombináltak)
 -- Futtatás: Supabase SQL Editor
 
 -- Egyéb termékek hátrasorolása, majd a kiemeltek fix pozíciója

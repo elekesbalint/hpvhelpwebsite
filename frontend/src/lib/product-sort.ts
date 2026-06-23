@@ -5,13 +5,13 @@ type Product = Database["public"]["Tables"]["products"]["Row"];
 /** Kiemelt tesztek előresorolása név alapján (sort_order egyezésnél dönt). */
 export function getFeaturedTestPriority(name: string): number | null {
   const n = name.trim().toLowerCase();
-  if (n.startsWith("microbiom teszt") || (n.startsWith("microbiom") && !/combo|allin|kombin|hpv|sti/.test(n))) return 10;
+  if (n.startsWith("full hpv") || (n.startsWith("hpv ") && !/combo|kombin|allin/.test(n))) return 10;
   if (n.startsWith("sti teszt") || (n.startsWith("sti ") && !/combo|kombin/.test(n))) return 20;
-  if (n.includes("allin1") || n.includes("hpv, sti és microbiom")) return 30;
-  if (n.startsWith("combo3") || (n.includes("sti") && n.includes("microbiom") && n.includes("kombin") && !n.includes("hpv"))) return 40;
-  if (n.startsWith("combo2") || (n.includes("hpv") && n.includes("microbiom") && n.includes("kombin") && !n.includes("sti"))) return 50;
-  if (n.startsWith("combo1") || (n.includes("hpv") && n.includes("sti") && n.includes("kombin") && !n.includes("microbiom"))) return 60;
-  if (n.startsWith("full hpv") || (n.startsWith("hpv ") && !/combo|kombin|allin/.test(n))) return 70;
+  if (n.startsWith("microbiom teszt") || (n.startsWith("microbiom") && !/combo|allin|kombin|hpv|sti/.test(n))) return 30;
+  if (n.includes("allin1") || n.includes("hpv, sti és microbiom")) return 40;
+  if (n.startsWith("combo3") || (n.includes("sti") && n.includes("microbiom") && n.includes("kombin") && !n.includes("hpv"))) return 50;
+  if (n.startsWith("combo2") || (n.includes("hpv") && n.includes("microbiom") && n.includes("kombin") && !n.includes("sti"))) return 60;
+  if (n.startsWith("combo1") || (n.includes("hpv") && n.includes("sti") && n.includes("kombin") && !n.includes("microbiom"))) return 70;
   return null;
 }
 
