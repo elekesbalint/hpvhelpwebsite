@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseWithBearer } from "@/lib/server-supabase";
+import { buildSimplePayOrderRef } from "@/lib/simplepay-order-ref";
 import { createSimplePaySignature, getSimplePayConfig, simplePayJsonStringify, simplePaySalt } from "@/lib/simplepay";
 
 type StartBody = {
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .select(
-        "id, user_id, status, total, currency, shipping_email, payment_provider, shipping_name, shipping_phone, shipping_address, billing_name, billing_address"
+        "id, order_number, user_id, status, total, currency, shipping_email, payment_provider, shipping_name, shipping_phone, shipping_address, billing_name, billing_address"
       )
       .eq("id", body.orderId)
       .maybeSingle();
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
     const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://hpvhelp.hu").replace(/\/+$/, "");
     const timeoutAt = new Date(Date.now() + 30 * 60 * 1000);
     const timeoutStr = timeoutAt.toISOString().replace(/\.\d{3}Z$/, "+00:00");
-    const orderRef = `ORDER_${order.id}`;
+    const orderRef = buildSimplePayOrderRef(order);
 
     const billingAddr = parseAddressParts(order.billing_address ?? order.shipping_address);
     const totalInt = Math.round(Number(order.total));

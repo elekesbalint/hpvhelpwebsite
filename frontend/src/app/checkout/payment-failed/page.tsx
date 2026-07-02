@@ -4,14 +4,11 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { formatOrderPublicId } from "@/lib/order-display-id";
+import { SIMPLEPAY_FAILED_BODY, SIMPLEPAY_FAILED_TITLE } from "@/lib/simplepay-legal";
 import SiteLogo from "@/components/SiteLogo";
+import SimplePayTransactionId from "@/components/SimplePayTransactionId";
 
 const REASON_COPY: Record<string, { title: string; body: string }> = {
-  fail: {
-    title: "A bankkártyás fizetés nem sikerült",
-    body:
-      "A SimplePay visszajelzése szerint a tranzakció nem zárult le sikeresen. A rendelésed rögzült, de még nincs kifizetve. Ellenőrizd a rendelésed állapotát a fiókodban, vagy vedd fel velünk a kapcsolatot.",
-  },
   cancel: {
     title: "Fizetés megszakítva",
     body: "A fizetési folyamatot megszakítottad. A rendelésed megmaradt.",
@@ -33,7 +30,9 @@ const REASON_COPY: Record<string, { title: string; body: string }> = {
 function PaymentFailedContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("orderId");
+  const transactionId = searchParams.get("transactionId");
   const reason = (searchParams.get("reason") ?? "unknown").toLowerCase();
+  const isSimplePayFail = reason === "fail";
   const copy = REASON_COPY[reason] ?? REASON_COPY.unknown;
   const publicId = orderId ? formatOrderPublicId(orderId) : null;
 
@@ -55,21 +54,30 @@ function PaymentFailedContent() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-slate-900">{copy.title}</h1>
-            <p className="mt-3 text-sm leading-relaxed text-red-950/70">{copy.body}</p>
-            {publicId ? (
-              <p className="mt-2 text-sm text-red-950/60">
-                Rendelés: <span className="font-mono font-semibold text-slate-900">{publicId}</span>
-              </p>
-            ) : null}
+            <h1 className="text-2xl font-bold text-slate-900">
+              {isSimplePayFail ? SIMPLEPAY_FAILED_TITLE : copy.title}
+            </h1>
+            <p className="mt-3 text-sm leading-relaxed text-red-950/70">
+              {isSimplePayFail ? SIMPLEPAY_FAILED_BODY : copy.body}
+            </p>
+            <div className="mt-4 space-y-2">
+              <SimplePayTransactionId transactionId={transactionId} className="text-sm text-red-950/70" />
+              {publicId ? (
+                <p className="text-sm text-red-950/60">
+                  Rendelés: <span className="font-mono font-semibold text-slate-900">{publicId}</span>
+                </p>
+              ) : null}
+            </div>
           </div>
 
-          <div className="rounded-xl border border-amber-100 bg-amber-50/80 p-4 text-left text-sm text-amber-950">
-            <p className="font-semibold text-amber-900">Apple Pay / Google Pay</p>
-            <p className="mt-1 text-amber-900/90">
-              Az Apple Pay-hez a kereskedői domain Apple Pay regisztrációja szükséges a SimplePay / Apple felületén. A Google Pay a SimplePay fizetőoldalán működik; ha ott „sikertelen” jelenik meg, a fenti üzenet a tényleges eredményt tükrözi — a rendelés fizetési státusza a fiókodban ellenőrizhető.
-            </p>
-          </div>
+          {!isSimplePayFail ? (
+            <div className="rounded-xl border border-amber-100 bg-amber-50/80 p-4 text-left text-sm text-amber-950">
+              <p className="font-semibold text-amber-900">Apple Pay / Google Pay</p>
+              <p className="mt-1 text-amber-900/90">
+                Az Apple Pay-hez a kereskedői domain Apple Pay regisztrációja szükséges a SimplePay / Apple felületén. A Google Pay a SimplePay fizetőoldalán működik; ha ott „sikertelen” jelenik meg, a fenti üzenet a tényleges eredményt tükrözi — a rendelés fizetési státusza a fiókodban ellenőrizhető.
+              </p>
+            </div>
+          ) : null}
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link

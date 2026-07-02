@@ -19,6 +19,7 @@ export type Database = {
           applies_to_sale_items: boolean;
           restricted_product_ids: string[] | null;
           is_active: boolean;
+          is_public: boolean;
           created_at: string;
         };
         Insert: {
@@ -36,6 +37,7 @@ export type Database = {
           applies_to_sale_items?: boolean;
           restricted_product_ids?: string[] | null;
           is_active?: boolean;
+          is_public?: boolean;
           created_at?: string;
         };
         Update: {
@@ -52,6 +54,7 @@ export type Database = {
           applies_to_sale_items?: boolean;
           restricted_product_ids?: string[] | null;
           is_active?: boolean;
+          is_public?: boolean;
         };
         Relationships: [];
       };
@@ -208,6 +211,7 @@ export type Database = {
       orders: {
         Row: {
           id: string;
+          order_number: string | null;
           user_id: string;
           status: "pending" | "paid" | "fulfilled" | "cancelled" | "refunded";
           subtotal: number;
@@ -240,6 +244,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          order_number?: string | null;
           user_id: string;
           status?: "pending" | "paid" | "fulfilled" | "cancelled" | "refunded";
           subtotal: number;
@@ -271,6 +276,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          order_number?: string | null;
           status?: "pending" | "paid" | "fulfilled" | "cancelled" | "refunded";
           subtotal?: number;
           discount?: number;
@@ -307,6 +313,7 @@ export type Database = {
           order_id: string;
           product_id: string | null;
           product_name: string;
+          product_sku: string | null;
           unit_price: number;
           quantity: number;
           line_total: number;
@@ -317,6 +324,7 @@ export type Database = {
           order_id: string;
           product_id?: string | null;
           product_name: string;
+          product_sku?: string | null;
           unit_price: number;
           quantity: number;
           line_total: number;
@@ -325,6 +333,7 @@ export type Database = {
         Update: {
           product_id?: string | null;
           product_name?: string;
+          product_sku?: string | null;
           unit_price?: number;
           quantity?: number;
           line_total?: number;

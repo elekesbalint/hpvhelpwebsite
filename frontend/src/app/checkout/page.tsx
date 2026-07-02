@@ -18,17 +18,22 @@ import {
   normalizeEmail,
 } from "@/lib/checkout-inputs";
 import {
+  CHECKOUT_SHIPPING_ABROAD_ENABLED,
   getEnabledPaymentMethods,
   getSampleTargetLabel,
   type PaymentMethod,
 } from "@/lib/checkout-config";
 import { formatShippingFee, shippingFeeForSubtotal } from "@/lib/shipping/fees";
 import { formatOrderPublicId } from "@/lib/order-display-id";
+import { resolveExportArticleNumber } from "@/lib/integrations/naturasoft/article-number";
 import { calculateCouponDiscount, cartItemIsOnSale } from "@/lib/pricing";
 import { BANK_DETAILS } from "@/lib/bank-details";
+import { COMPANY_CONTACT } from "@/lib/company-contact";
 import { supabase } from "@/lib/supabase";
 import GuestCheckoutNotice from "@/components/GuestCheckoutNotice";
 import PickupPointSelector from "@/components/PickupPointSelector";
+import SimplePayCardDeclaration from "@/components/SimplePayCardDeclaration";
+import SimplePayLogoLink from "@/components/SimplePayLogoLink";
 import SiteLogo from "@/components/SiteLogo";
 import type { PickupPoint, PickupPointMeta } from "@/types/pickup-point";
 import type { Session } from "@supabase/supabase-js";
@@ -69,6 +74,10 @@ const shippingOptions: { id: ShippingMethod; label: string; sub: string }[] = [
   { id: "pickup",    label: "Személyes átvétel", sub: "7623 Pécs, Megyeri út 26. fszt. 109." },
   { id: "abroad",    label: "Külföldi szállítás", sub: "EU-n kívüli vagy nem magyarországi szállítási cím" },
 ];
+
+const visibleShippingOptions = shippingOptions.filter(
+  (option) => option.id !== "abroad" || CHECKOUT_SHIPPING_ABROAD_ENABLED,
+);
 
 const shippingCarrierLogos: Record<ShippingMethod, CarrierLogo[]> = {
   posta: [{ name: "Magyar Posta", src: "/shipping/magyar-posta.png" }],
@@ -184,10 +193,12 @@ export default function CheckoutPage() {
   const [vatContentTotal, setVatContentTotal] = useState<number>(0);
   const [selectedPickupPoint, setSelectedPickupPoint] = useState<PickupPoint | null>(null);
   const [pickupModalOpen, setPickupModalOpen] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const isPickupShipping = shippingMethod === "csomagpont";
+  const isPersonalPickup = shippingMethod === "pickup";
 
-  const shipping = shippingFeeForSubtotal(shippingMethod, subtotal);
+  const shipping = shippingFeeForSubtotal(shippingMethod);
   const couponDiscount = appliedCoupon ? calculateCouponDiscount(appliedCoupon, subtotal + shipping) : 0;
 
   // Szállítási ZIP → város autofill
@@ -224,6 +235,20 @@ export default function CheckoutPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!mounted || items.length === 0) return;
+    const key = "hpvhelp_begin_checkout_tracked";
+    try {
+      if (window.sessionStorage.getItem(key) === "1") return;
+      window.sessionStorage.setItem(key, "1");
+    } catch {
+      /* ignore */
+    }
+    void import("@/lib/analytics/track").then(({ trackBeginCheckout }) => {
+      trackBeginCheckout(items, total);
+    });
+  }, [mounted, items, total]);
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => {
@@ -305,27 +330,18 @@ export default function CheckoutPage() {
     let cancelled = false;
     void (async () => {
       const productIds = items.map((item) => item.productId);
-      const { data: products } = await supabase
-        .from("products")
-        .select("id, category_id, vat_rate")
-        .in("id", productIds);
+      const [{ data: products }, { data: categories }] = await Promise.all([
+        supabase.from("products").select("id, category_id, vat_rate").in("id", productIds),
+        supabase.from("categories").select("id, slug, parent_id, vat_rate"),
+      ]);
 
       if (!products || cancelled) return;
 
       const typedProducts = products as Pick<ProductRow, "id" | "category_id" | "vat_rate">[];
-      const categoryIds = Array.from(
-        new Set(typedProducts.map((p) => p.category_id).filter((id): id is string => Boolean(id)))
-      );
-
+      const typedCategories = (categories ?? []) as Pick<CategoryRow, "id" | "slug" | "parent_id" | "vat_rate">[];
       const categoryVatById = new Map<string, number | null>();
-      if (categoryIds.length > 0) {
-        const { data: categories } = await supabase
-          .from("categories")
-          .select("id, vat_rate")
-          .in("id", categoryIds);
-        (categories as Pick<CategoryRow, "id" | "vat_rate">[] | null)?.forEach((c) => {
-          categoryVatById.set(c.id, c.vat_rate);
-        });
+      for (const category of typedCategories) {
+        categoryVatById.set(category.id, category.vat_rate);
       }
 
       const productMap = new Map(typedProducts.map((p) => [p.id, p]));
@@ -338,7 +354,9 @@ export default function CheckoutPage() {
         return sum + (gross * rate) / (100 + rate);
       }, 0);
 
-      if (!cancelled) setVatContentTotal(totalVat);
+      if (!cancelled) {
+        setVatContentTotal(totalVat);
+      }
     })();
 
     return () => {
@@ -435,7 +453,7 @@ export default function CheckoutPage() {
       return;
     }
 
-    const validationError = validateCheckoutInputs();
+    const validationError = validateCheckoutInputs({ requireTerms: true });
     if (validationError) {
       setSubmitting(false);
       setError(validationError);
@@ -450,9 +468,11 @@ export default function CheckoutPage() {
     }
 
     const shippingAddress =
-      shippingMethod === "csomagpont" && selectedPickupPoint
-        ? formatPickupShippingAddress(selectedPickupPoint)
-        : `${zip} ${city}, ${street} ${houseNumber}`;
+      shippingMethod === "pickup"
+        ? COMPANY_CONTACT.office
+        : shippingMethod === "csomagpont" && selectedPickupPoint
+          ? formatPickupShippingAddress(selectedPickupPoint)
+          : `${zip} ${city}, ${street} ${houseNumber}`;
     const emailNorm = normalizeEmail(email);
 
     const shippingName = buyerType === "individual" ? name.trim() : contactName.trim();
@@ -522,16 +542,29 @@ export default function CheckoutPage() {
       return;
     }
 
-    const orderItemsPayload = items.map((item) => ({
-      order_id: order.id,
-      product_id: item.productId,
-      product_name: getSampleTargetLabel(item.sampleTarget)
+    const cartProductIds = items.map((item) => item.productId);
+    const { data: orderProducts } = await supabase
+      .from("products")
+      .select("id, sku, slug, description")
+      .in("id", cartProductIds);
+    const orderProductById = new Map((orderProducts ?? []).map((p) => [p.id, p]));
+
+    const orderItemsPayload = items.map((item) => {
+      const product = orderProductById.get(item.productId);
+      const productName = getSampleTargetLabel(item.sampleTarget)
         ? `${item.name} - ${getSampleTargetLabel(item.sampleTarget)}`
-        : item.name,
-      unit_price: Number(item.price.toFixed(2)),
-      quantity: item.quantity,
-      line_total: Number((item.price * item.quantity).toFixed(2)),
-    }));
+        : item.name;
+      const sku = resolveExportArticleNumber({ product_name: productName }, product);
+      return {
+        order_id: order.id,
+        product_id: item.productId,
+        product_name: productName,
+        product_sku: sku === "ISMERETLEN" ? null : sku,
+        unit_price: Number(item.price.toFixed(2)),
+        quantity: item.quantity,
+        line_total: Number((item.price * item.quantity).toFixed(2)),
+      };
+    });
 
     const { data: orderItemsData, error: itemsError } = await supabase
       .from("order_items")
@@ -734,7 +767,7 @@ export default function CheckoutPage() {
     setCouponCode("");
   }
 
-  function validateCheckoutInputs(): string | null {
+  function validateCheckoutInputs(options?: { requireTerms?: boolean }): string | null {
     const emailNorm = normalizeEmail(email);
     if (!isValidEmail(emailNorm)) {
       return "Kérjük adj meg egy érvényes email címet.";
@@ -767,6 +800,9 @@ export default function CheckoutPage() {
         return "Kérjük töltsd ki a szállítási címet.";
       }
     }
+    if (options?.requireTerms && !termsAccepted) {
+      return "A rendelés leadásához el kell fogadnod az ÁSZF-et, a szállítási feltételeket és az adatvédelmi nyilatkozatot.";
+    }
     return null;
   }
 
@@ -779,27 +815,29 @@ export default function CheckoutPage() {
     }
   }
 
-  const inputCls = "w-full rounded-xl border border-brand-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-100";
+  const inputCls = "w-full min-w-0 rounded-xl border border-brand-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-100";
   const labelCls = "mb-1 block text-xs font-semibold text-red-950/70";
 
   return (
-    <div className="min-h-screen bg-[#fdf8f8] text-slate-900">
-      <header className="sticky top-0 z-20 border-b border-brand-100/80 bg-white/80 shadow-sm backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+    <div className="min-h-screen w-full min-w-0 overflow-x-clip bg-[#fdf8f8] text-slate-900">
+      <header className="sticky top-0 z-20 border-b border-brand-100/80 bg-white/80 pt-safe-top shadow-sm backdrop-blur-md">
+        <div className="mx-auto flex min-w-0 max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4">
           <Link
             href="/cart"
-            className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-white px-4 py-2 text-sm font-semibold text-red-950 shadow-sm transition hover:bg-brand-50"
+            className="inline-flex min-w-0 max-w-[55%] shrink items-center gap-1.5 rounded-xl border border-brand-200 bg-white px-3 py-2 text-xs font-semibold text-red-950 shadow-sm transition hover:bg-brand-50 sm:max-w-none sm:gap-2 sm:px-4 sm:text-sm"
           >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
             </svg>
-            Vissza a kosárhoz
+            <span className="truncate sm:hidden">Vissza</span>
+            <span className="hidden truncate sm:inline">Vissza a kosárhoz</span>
           </Link>
-          <SiteLogo withLink={false} size="md" />
+          <SiteLogo withLink={false} size="sm" className="min-w-0 shrink sm:hidden" />
+          <SiteLogo withLink={false} size="md" className="hidden shrink-0 sm:block" />
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-6 py-10">
+      <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-8 pb-page sm:px-6 sm:py-10">
         <div className="mb-8">
           <p className="text-xs font-bold uppercase tracking-widest text-brand-700">Rendelés</p>
           <h1 className="mt-1 text-3xl font-bold text-slate-900">Fizetés</h1>
@@ -827,14 +865,14 @@ export default function CheckoutPage() {
               {checkoutStep === "details" ? (
                 <>
               {/* Shipping */}
-              <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
+              <div className="rounded-2xl border border-brand-100 bg-white p-4 shadow-sm sm:p-6">
                 <h2 className="mb-5 text-base font-bold text-slate-900">Szállítási adatok</h2>
 
                 <div className="mb-5">
                   <p className={`${labelCls} mb-2`}>Vásárló típusa *</p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label
-                      className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition ${
+                      className={`flex min-w-0 cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition sm:items-center sm:p-4 ${
                         buyerType === "individual" ? "border-brand-700 bg-brand-50" : "border-brand-100 bg-white hover:border-brand-300"
                       }`}
                     >
@@ -845,13 +883,13 @@ export default function CheckoutPage() {
                         onChange={() => setBuyerType("individual")}
                         className="h-4 w-4 accent-brand-800"
                       />
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-bold text-slate-900">Magánszemély</p>
-                        <p className="text-xs text-red-950/60">Számlázáshoz nincs szükség adószámra.</p>
+                        <p className="text-xs leading-relaxed text-red-950/60">Számlázáshoz nincs szükség adószámra.</p>
                       </div>
                     </label>
                     <label
-                      className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition ${
+                      className={`flex min-w-0 cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition sm:items-center sm:p-4 ${
                         buyerType === "company" ? "border-brand-700 bg-brand-50" : "border-brand-100 bg-white hover:border-brand-300"
                       }`}
                     >
@@ -862,9 +900,9 @@ export default function CheckoutPage() {
                         onChange={() => setBuyerType("company")}
                         className="h-4 w-4 accent-brand-800"
                       />
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-bold text-slate-900">Cég</p>
-                        <p className="text-xs text-red-950/60">Cégnév és adószám kötelező (számlázás).</p>
+                        <p className="text-xs leading-relaxed text-red-950/60">Cégnév és adószám kötelező (számlázás).</p>
                       </div>
                     </label>
                   </div>
@@ -939,7 +977,7 @@ export default function CheckoutPage() {
                       />
                     </div>
                   </div>
-                  {!isPickupShipping ? (
+                  {!isPickupShipping && !isPersonalPickup ? (
                     <>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div>
@@ -962,7 +1000,7 @@ export default function CheckoutPage() {
                         </div>
                       </div>
                     </>
-                  ) : (
+                  ) : isPickupShipping ? (
                     <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-4">
                       <p className="text-xs font-bold uppercase tracking-widest text-brand-700">Csomagpont átvétel</p>
                       {selectedPickupPoint ? (
@@ -986,6 +1024,12 @@ export default function CheckoutPage() {
                           Válassz csomagpontot a térképen
                         </button>
                       )}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-4">
+                      <p className="text-xs font-bold uppercase tracking-widest text-brand-700">Személyes átvétel</p>
+                      <p className="mt-2 text-sm font-bold text-slate-900">{COMPANY_CONTACT.office}</p>
+                      <p className="mt-1 text-xs text-red-950/60">{COMPANY_CONTACT.hours}</p>
                     </div>
                   )}
                   <div>
@@ -1063,13 +1107,13 @@ export default function CheckoutPage() {
               </div>
 
               {/* Shipping method */}
-              <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
+              <div className="rounded-2xl border border-brand-100 bg-white p-4 shadow-sm sm:p-6">
                 <h2 className="mb-5 text-base font-bold text-slate-900">Szállítási mód</h2>
                 <div className="space-y-3">
-                  {shippingOptions.map((option) => (
+                  {visibleShippingOptions.map((option) => (
                     <label
                       key={option.id}
-                      className={`flex cursor-pointer items-center gap-4 rounded-xl border-2 p-4 transition ${
+                      className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition sm:items-center sm:gap-4 sm:p-4 ${
                         shippingMethod === option.id
                           ? "border-brand-700 bg-brand-50"
                           : "border-brand-100 bg-white hover:border-brand-300"
@@ -1083,7 +1127,7 @@ export default function CheckoutPage() {
                         onChange={() => handleShippingMethodChange(option.id)}
                         className="h-4 w-4 accent-brand-800"
                       />
-                      <div className="flex flex-1 items-center justify-between gap-3">
+                      <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-slate-900">{option.label}</p>
                           <p className="text-xs text-red-950/60">{option.sub}</p>
@@ -1118,7 +1162,7 @@ export default function CheckoutPage() {
                           ) : null}
                         </div>
                         <p className="shrink-0 text-sm font-bold text-brand-900">
-                          {formatShippingFee(shippingFeeForSubtotal(option.id, subtotal))}
+                          {formatShippingFee(shippingFeeForSubtotal(option.id))}
                         </p>
                       </div>
                     </label>
@@ -1127,14 +1171,10 @@ export default function CheckoutPage() {
               </div>
 
               {/* Payment method */}
-              <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
+              <div className="rounded-2xl border border-brand-100 bg-white p-4 shadow-sm sm:p-6">
                 <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                   <h2 className="text-base font-bold text-slate-900">Fizetési mód</h2>
-                  <img
-                    src="/simplepay-by-otp.png"
-                    alt="SimplePay by OTP Mobile"
-                    className="h-8 w-auto max-w-[180px] object-contain"
-                  />
+                  <SimplePayLogoLink />
                 </div>
                 <div className="space-y-3">
                   {paymentOptions
@@ -1142,7 +1182,7 @@ export default function CheckoutPage() {
                     .map((option) => (
                     <label
                       key={option.id}
-                      className={`flex cursor-pointer items-start gap-4 rounded-xl border-2 p-4 transition ${
+                      className={`flex min-w-0 cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition sm:gap-4 sm:p-4 ${
                         payment === option.id
                           ? "border-brand-700 bg-brand-50"
                           : "border-brand-100 bg-white hover:border-brand-200"
@@ -1172,11 +1212,9 @@ export default function CheckoutPage() {
                 </div>
 
                 {payment === "card" ? (
-                  <div className="mt-4 flex items-start gap-3 rounded-xl border border-brand-100 bg-brand-50 p-4">
-                    <svg className="mt-0.5 h-4 w-4 shrink-0 text-brand-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-xs text-red-950/70">
+                  <div className="mt-4 space-y-3">
+                    <SimplePayCardDeclaration />
+                    <p className="text-xs text-red-950/60">
                       A <strong>Fizetés véglegesítése</strong> gombra kattintva a SimplePay biztonságos fizetési oldalára irányítunk. A kártyaadatokat kizárólag a SimplePay rendszere kezeli, azokat nem tároljuk.
                     </p>
                   </div>
@@ -1197,7 +1235,7 @@ export default function CheckoutPage() {
               </div>
                 </>
               ) : (
-                <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
+                <div className="rounded-2xl border border-brand-100 bg-white p-4 shadow-sm sm:p-6">
                   <div className="flex items-center justify-between gap-3">
                     <h2 className="text-base font-bold text-slate-900">Rendelés összesítő</h2>
                     <button
@@ -1221,12 +1259,14 @@ export default function CheckoutPage() {
 
                     <div className="rounded-xl border border-brand-100 bg-brand-50/30 p-4">
                       <p className="text-xs font-bold uppercase tracking-wider text-brand-700">
-                        {isPickupShipping ? "Csomagpont átvétel" : "Szállítási cím"}
+                        {isPickupShipping ? "Csomagpont átvétel" : isPersonalPickup ? "Személyes átvétel" : "Szállítási cím"}
                       </p>
                       <p className="mt-1 text-slate-900">
                         {isPickupShipping && selectedPickupPoint
                           ? `${selectedPickupPoint.name} — ${formatPickupShippingAddress(selectedPickupPoint)}`
-                          : `${zip} ${city}, ${street} ${houseNumber}`}
+                          : isPersonalPickup
+                            ? COMPANY_CONTACT.office
+                            : `${zip} ${city}, ${street} ${houseNumber}`}
                       </p>
                     </div>
 
@@ -1268,7 +1308,7 @@ export default function CheckoutPage() {
 
             {/* Right: Sticky summary */}
             <div className="lg:sticky lg:top-24 lg:self-start space-y-4">
-              <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
+              <div className="rounded-2xl border border-brand-100 bg-white p-4 shadow-sm sm:p-6">
                 <h2 className="mb-4 text-base font-bold text-slate-900">Rendelés összegzése</h2>
 
                 <div className="space-y-3">
@@ -1381,11 +1421,36 @@ export default function CheckoutPage() {
                     Tovább a rendelés összesítőre
                   </button>
                 ) : (
-                  <button
-                    type="submit"
-                    disabled={submitting || items.length === 0}
-                    className="btn-press mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-900 px-4 py-3.5 text-sm font-bold text-white shadow-md shadow-brand-200 transition hover:bg-brand-800 disabled:opacity-50"
-                  >
+                  <>
+                    <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-brand-100 bg-brand-50/30 p-4">
+                      <input
+                        type="checkbox"
+                        checked={termsAccepted}
+                        onChange={(e) => setTermsAccepted(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-brand-300 text-brand-800 accent-brand-800"
+                      />
+                      <span className="text-sm leading-relaxed text-red-950">
+                        Elfogadom az{" "}
+                        <Link href="/aszf" target="_blank" className="font-semibold text-brand-800 underline-offset-2 hover:underline">
+                          Általános Szerződési Feltételeket
+                        </Link>
+                        , a{" "}
+                        <Link href="/aszf#5" target="_blank" className="font-semibold text-brand-800 underline-offset-2 hover:underline">
+                          szállítási feltételeket
+                        </Link>{" "}
+                        és az{" "}
+                        <Link href="/adatvedelmi" target="_blank" className="font-semibold text-brand-800 underline-offset-2 hover:underline">
+                          adatvédelmi nyilatkozatot
+                        </Link>
+                        . *
+                      </span>
+                    </label>
+
+                    <button
+                      type="submit"
+                      disabled={submitting || items.length === 0 || !termsAccepted}
+                      className="btn-press mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-900 px-4 py-3.5 text-sm font-bold text-white shadow-md shadow-brand-200 transition hover:bg-brand-800 disabled:opacity-50"
+                    >
                     {submitting ? (
                       <>
                         <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -1403,11 +1468,14 @@ export default function CheckoutPage() {
                       </>
                     )}
                   </button>
+
+                    <p className="mt-3 text-center text-xs text-red-950/40">A végösszeg bruttó ár.</p>
+                  </>
                 )}
 
-                <p className="mt-3 text-center text-xs text-red-950/40">
-                  A rendelés leadásával elfogadod az ÁSZF-et és az Adatvédelmi nyilatkozatot. A végösszeg bruttó ár.
-                </p>
+                {checkoutStep === "details" ? (
+                  <p className="mt-3 text-center text-xs text-red-950/40">A végösszeg bruttó ár.</p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -1416,8 +1484,17 @@ export default function CheckoutPage() {
 
       <PickupPointSelector
         open={pickupModalOpen}
-        onClose={() => setPickupModalOpen(false)}
-        onSelect={setSelectedPickupPoint}
+        onClose={() => {
+          setPickupModalOpen(false);
+          if (shippingMethod === "csomagpont" && !selectedPickupPoint) {
+            setShippingMethod("posta");
+          }
+        }}
+        onSelect={(point) => {
+          setSelectedPickupPoint(point);
+          setShippingMethod("csomagpont");
+          setPickupModalOpen(false);
+        }}
         selected={selectedPickupPoint}
         searchZip={zip.trim().length === 4 ? zip : undefined}
       />

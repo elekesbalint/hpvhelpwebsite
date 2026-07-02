@@ -7,6 +7,7 @@ import { billingAddressDisplay, billingNameDisplay } from "@/lib/order-billing";
 import { formatOrderPublicId } from "@/lib/order-display-id";
 import { supabase } from "@/lib/supabase";
 import SiteLogo from "@/components/SiteLogo";
+import OrderTotalsBreakdown from "@/components/OrderTotalsBreakdown";
 import type { Database } from "@/types/supabase";
 
 type Order = Database["public"]["Tables"]["orders"]["Row"];
@@ -87,6 +88,7 @@ function DashboardContent() {
         .from("coupons")
         .select("*")
         .eq("is_active", true)
+        .eq("is_public", true)
         .or(`valid_from.is.null,valid_from.lte.${now}`)
         .or(`expires_at.is.null,expires_at.gte.${now}`)
         .order("created_at", { ascending: false });
@@ -422,7 +424,7 @@ function DashboardContent() {
                       return (
                         <div key={order.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-100 p-4 transition hover:bg-brand-50/30">
                           <div>
-                            <p className="font-mono text-xs text-slate-400">{formatOrderPublicId(order.id)}</p>
+                            <p className="font-mono text-xs text-slate-400">{formatOrderPublicId(order)}</p>
                             <p className="text-sm font-semibold text-slate-900">
                               {new Date(order.created_at).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })}
                             </p>
@@ -467,7 +469,7 @@ function DashboardContent() {
                           label: "Azonosító",
                           value: (
                             <span className="font-mono text-sm font-semibold text-slate-900" title={selectedOrder.id}>
-                              {formatOrderPublicId(selectedOrder.id)}
+                              {formatOrderPublicId(selectedOrder)}
                             </span>
                           ),
                         },
@@ -526,27 +528,7 @@ function DashboardContent() {
                               </span>
                             </div>
                           ))}
-                          {Number(selectedOrder.discount) > 0 ? (
-                            <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                              <span className="text-sm font-semibold text-emerald-800">
-                                Kupon kedvezmény
-                                {selectedOrder.coupon_code ? (
-                                  <span className="ml-2 rounded-full border border-emerald-300 bg-white px-2 py-0.5 font-mono text-xs font-bold text-emerald-700">
-                                    {selectedOrder.coupon_code}
-                                  </span>
-                                ) : null}
-                              </span>
-                              <span className="text-sm font-bold text-emerald-700">
-                                −{Number(selectedOrder.discount).toLocaleString("hu-HU")} Ft
-                              </span>
-                            </div>
-                          ) : null}
-                          <div className="flex items-center justify-between rounded-xl bg-brand-50 px-4 py-3">
-                            <span className="text-sm font-bold text-red-950">Végösszeg</span>
-                            <span className="text-base font-bold text-brand-900">
-                              {Number(selectedOrder.total).toLocaleString("hu-HU")} Ft
-                            </span>
-                          </div>
+                          <OrderTotalsBreakdown order={selectedOrder} />
                         </div>
                       )}
                     </div>
@@ -571,7 +553,7 @@ function DashboardContent() {
                             className="animate-fade-up card-hover flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-brand-100 bg-white p-5 shadow-sm"
                           >
                             <div>
-                              <p className="font-mono text-xs text-slate-400">{formatOrderPublicId(order.id)}</p>
+                              <p className="font-mono text-xs text-slate-400">{formatOrderPublicId(order)}</p>
                               <p className="mt-0.5 text-sm font-semibold text-slate-900">
                                 {new Date(order.created_at).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })}
                               </p>

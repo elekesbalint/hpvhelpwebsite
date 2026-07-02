@@ -86,6 +86,20 @@ export function addToCart(
   }
 
   setCartItems(items);
+
+  if (typeof window !== "undefined") {
+    void import("@/lib/analytics/track").then(({ trackAddToCart }) => {
+      trackAddToCart(
+        {
+          ...item,
+          quantity: toAdd,
+          maxStock: Number.isFinite(maxStock) ? maxStock : item.maxStock,
+        },
+        toAdd,
+      );
+    });
+  }
+
   return {
     added: toAdd,
     requested: quantity,

@@ -38,3 +38,6 @@ export function getSampleTargetLabel(target?: SampleTarget): string | null {
   if (target === "male") return "Férfi mintavételi csomag";
   return null;
 }
+
+/** Ideiglenesen kikapcsolva – checkouton nem jelenik meg a külföldi szállítás. */
+export const CHECKOUT_SHIPPING_ABROAD_ENABLED = false;

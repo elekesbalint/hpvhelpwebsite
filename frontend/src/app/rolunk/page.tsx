@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Footer from "@/components/Footer";
 import PublicSiteHeader from "@/components/PublicSiteHeader";
+import { buildPageMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Rólunk – HPVhelp",
-  description: "A Sunmed Kft. és a HPVhelp webáruház bemutatása.",
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: "Rólunk",
+  description: "A Sunmed Kft. és a HPVhelp webáruház bemutatása – HPV szűrés, öntesztek és szakmai háttér.",
+  path: "/rolunk",
+});
 
 export default function RolunkPage() {
   return (

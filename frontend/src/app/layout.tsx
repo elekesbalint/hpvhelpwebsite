@@ -1,5 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import JsonLd from "@/components/seo/JsonLd";
+import SiteAnalytics from "@/components/analytics/SiteAnalytics";
+import { buildOrganizationJsonLd } from "@/lib/seo/json-ld";
+import { buildPageMetadata } from "@/lib/seo/metadata";
+import { getSiteUrl, SITE_DEFAULT_TITLE, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,9 +17,38 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const defaultSeo = buildPageMetadata({
+  absoluteTitle: SITE_DEFAULT_TITLE,
+  description: SITE_DESCRIPTION,
+  path: "/",
+});
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export const metadata: Metadata = {
-  title: "HPVhelp",
-  description: "Szűrések, tesztek és étrend-kiegészítők – HPVhelp webáruház",
+  metadataBase: new URL(getSiteUrl()),
+  title: {
+    default: SITE_DEFAULT_TITLE,
+    template: `%s – ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  authors: [{ name: "Sunmed Kft." }],
+  creator: "Sunmed Kft.",
+  publisher: "Sunmed Kft.",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  alternates: defaultSeo.alternates,
+  openGraph: defaultSeo.openGraph,
+  twitter: defaultSeo.twitter,
+  robots: defaultSeo.robots,
 };
 
 export default function RootLayout({
@@ -29,6 +63,8 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex min-w-0 flex-col overflow-x-clip" suppressHydrationWarning>
+        <JsonLd data={buildOrganizationJsonLd()} />
+        <SiteAnalytics />
         {children}
       </body>
     </html>

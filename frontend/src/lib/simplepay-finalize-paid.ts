@@ -1,5 +1,6 @@
 import { resolveCustomerEmailForOrder } from "@/lib/order-customer-email";
 import { formatOrderPublicId } from "@/lib/order-display-id";
+import { trackServerPurchase } from "@/lib/analytics/server-purchase";
 import { createServiceSupabase } from "@/lib/server-supabase";
 import { sendOrderConfirmationEmail } from "@/lib/resend-notifications";
 
@@ -43,7 +44,7 @@ export async function finalizeSimplePaySuccessOrder(
     const mail = await sendOrderConfirmationEmail({
       order: fullOrder,
       items: items ?? [],
-      publicOrderLabel: formatOrderPublicId(fullOrder.id),
+      publicOrderLabel: formatOrderPublicId(fullOrder),
       customerEmail,
     });
     if (!mail.ok) {
@@ -54,5 +55,6 @@ export async function finalizeSimplePaySuccessOrder(
         adminOnly: mail.adminOnly,
       });
     }
+    void trackServerPurchase(orderId);
   }
 }

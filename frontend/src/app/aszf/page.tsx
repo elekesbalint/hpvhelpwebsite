@@ -1,10 +1,14 @@
 import Link from "next/link";
 import SiteLogo from "@/components/SiteLogo";
 import ShippingFeesTable from "@/components/ShippingFeesTable";
+import type { Metadata } from "next";
+import { buildPageMetadata } from "@/lib/seo/metadata";
 
-export const metadata = {
-  title: "Általános Szerződési Feltételek – HPVhelp",
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: "Általános Szerződési Feltételek",
+  description: "A HPVhelp webáruház általános szerződési feltételei (ÁSZF) – Sunmed Kft.",
+  path: "/aszf",
+});
 
 export default function AszfPage() {
   return (
@@ -182,7 +186,7 @@ export default function AszfPage() {
                   </ul>
                   <p><strong>Fizetési módok</strong></p>
                   <p><strong>Online bankkártyás fizetés (OTP Mobil – SimplePay):</strong> A Megrendelő a birtokában lévő bankkártya segítségével azonnal teljesítheti a fizetési kötelezettségét. A MEGRENDELÉS gombra kattintva az oldal 3-5 másodperc után átirányítja a Megrendelőt az OTP Mobil (SimplePay) fizető felületre, ahol megadhatja adatait és teljesítheti a fizetést.</p>
-                  <p>Elfogadom és hozzájárulok, hogy a(z) Sunmed Kft. (7623 Pécs, Megyeri út 26. fszt. 109.) által a(z) hpvhelp.hu felhasználói adatbázisában tárolt alábbi személyes adataim átadásra kerüljenek az OTP Mobil Kft. (1143 Budapest, Hungária körút 17-19.), mint adatfeldolgozó részére.</p>
+                  <p>Elfogadom és hozzájárulok, hogy a(z) Sunmed Kft. (7623 Pécs, Megyeri út 26. fszt. 109.) által a(z) hpvhelp.hu felhasználói adatbázisában tárolt alábbi személyes adataim átadásra kerüljenek a SimplePay Zrt. (1138 Budapest, Váci út 135-139-B. ép. 5. em.), mint adatfeldolgozó részére.</p>
                   <p>Az adatkezelő által továbbított adatok köre: A Vásárló neve, e-mail címe, telefonszáma, a megrendelés végösszege.</p>
                   <p>Az adatfeldolgozó által végzett adatfeldolgozási tevékenység részletei: <a href="https://simplepay.hu/vasarlo-aff" target="_blank" rel="noopener noreferrer" className="text-brand-800 underline underline-offset-2">simplepay.hu/vasarlo-aff</a></p>
                   <p><strong>Átutalás:</strong></p>

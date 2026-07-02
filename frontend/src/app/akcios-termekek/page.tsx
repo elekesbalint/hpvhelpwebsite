@@ -5,10 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Footer from "@/components/Footer";
+import { ProductCardDetailsButton, ProductCardImageHint } from "@/components/ProductCardDetailsHint";
 import PublicSiteHeader from "@/components/PublicSiteHeader";
 import { addToCart } from "@/lib/cart";
 import { sortCategoriesForDisplay } from "@/lib/category-sort";
 import { getProductPricing, productHasActiveDiscount } from "@/lib/pricing";
+import { productDescriptionPlainText } from "@/lib/product-description-plain";
 import { sortSaleProducts } from "@/lib/sort-sale-products";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/supabase";
@@ -80,10 +82,6 @@ export default function AkciosTermekekPage() {
         <div className="mb-8 animate-fade-up">
           <p className="text-xs font-bold uppercase tracking-widest text-brand-700">Kiemelt ajánlatok</p>
           <h1 className="mt-2 font-serif text-3xl font-bold italic text-brand-900 md:text-4xl">Akciós termékek</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-red-950/70">
-            Az alábbi listában azok a termékek jelennek meg, amelyeknél érvényes leárazás vagy kedvezmény van
-            beállítva. Az admin felületen módosított akciók automatikusan megjelennek itt is.
-          </p>
           {!loading && !error ? (
             <p className="mt-2 text-sm text-red-950/60">
               <span className="font-bold text-slate-900">{saleProducts.length}</span> akciós termék
@@ -170,6 +168,7 @@ export default function AkciosTermekekPage() {
                     <span className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ${badge.cls}`}>
                       {badge.label}
                     </span>
+                    <ProductCardImageHint />
                   </div>
                   <div className="flex flex-1 flex-col p-4">
                     {catName ? (
@@ -180,7 +179,7 @@ export default function AkciosTermekekPage() {
                     </h2>
                     {product.description ? (
                       <p className="mt-1 line-clamp-2 text-xs text-red-950/55">
-                        {product.description.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()}
+                        {productDescriptionPlainText(product.description)}
                       </p>
                     ) : null}
                     <div className="mt-auto pt-4">
@@ -190,7 +189,14 @@ export default function AkciosTermekekPage() {
                       <p className="text-xl font-bold text-rose-600">
                         {pricing.effectivePrice.toLocaleString("hu-HU")} Ft
                       </p>
-                      <button
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <ProductCardDetailsButton
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/shop/${product.slug}`);
+                          }}
+                        />
+                        <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -211,10 +217,11 @@ export default function AkciosTermekekPage() {
                           }
                         }}
                         disabled={product.stock <= 0}
-                        className="btn-press mt-3 w-full rounded-xl bg-brand-900 px-3 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                        className="btn-press w-full rounded-xl bg-brand-900 px-3 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
                       >
                         {product.stock > 0 ? "Kosárba" : "Átmenetileg nem elérhető"}
                       </button>
+                      </div>
                     </div>
                   </div>
                 </article>

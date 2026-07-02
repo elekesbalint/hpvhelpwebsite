@@ -11,10 +11,10 @@ type Props = {
 };
 
 const sizeClass = {
-  sm: "h-11 max-h-11 w-auto max-w-[240px] md:h-12 md:max-h-12 md:max-w-[280px]",
-  md: "h-11 max-h-11 w-auto max-w-[260px] md:h-12 md:max-h-12 md:max-w-[310px]",
-  lg: "h-12 max-h-12 w-auto max-w-[300px] md:h-14 md:max-h-14 md:max-w-[380px]",
-  xl: "h-14 max-h-14 w-auto max-w-[340px] md:h-16 md:max-h-16 md:max-w-[420px] lg:h-[4.5rem] lg:max-h-[4.5rem] lg:max-w-[500px]",
+  sm: "h-10 max-h-10 w-auto min-w-0 max-w-full sm:h-11 sm:max-h-11 sm:max-w-[240px] md:h-12 md:max-h-12 md:max-w-[280px]",
+  md: "h-10 max-h-10 w-auto min-w-0 max-w-full sm:h-11 sm:max-h-11 sm:max-w-[260px] md:h-12 md:max-h-12 md:max-w-[310px]",
+  lg: "h-12 max-h-12 w-auto min-w-0 max-w-full sm:max-w-[300px] md:h-14 md:max-h-14 md:max-w-[380px]",
+  xl: "h-14 max-h-14 w-auto min-w-0 max-w-full sm:max-w-[340px] md:h-16 md:max-h-16 md:max-w-[420px] lg:h-[4.5rem] lg:max-h-[4.5rem] lg:max-w-[500px]",
 } as const;
 
 export default function SiteLogo({ withLink = true, className = "", size = "md" }: Props) {

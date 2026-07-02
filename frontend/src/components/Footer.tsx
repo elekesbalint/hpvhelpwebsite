@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SIMPLEPAY_PAYMENT_INFO_PDF_URL } from "@/lib/simplepay-legal";
 import SiteLogo from "@/components/SiteLogo";
 import { COMPANY_CONTACT } from "@/lib/company-contact";
 
@@ -6,8 +7,8 @@ export default function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="mt-16 border-t border-brand-100 bg-white">
-      <div className="mx-auto w-full max-w-[1320px] px-6 py-12">
+    <footer className="mt-16 border-t border-brand-100 bg-white pb-safe">
+      <div className="mx-auto w-full max-w-[1320px] px-4 py-12 sm:px-6">
         <div className="grid gap-10 md:grid-cols-[1.6fr_1fr_1fr]">
 
           {/* Brand + contact */}
@@ -125,8 +126,16 @@ export default function Footer() {
 
           <div className="flex flex-wrap items-center gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/simplepay.png"     alt="SimplePay"   className="h-7 w-auto object-contain" />
+            <a
+              href={SIMPLEPAY_PAYMENT_INFO_PDF_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex rounded-lg outline-none ring-brand-600/30 transition hover:opacity-90 focus-visible:ring-2"
+              title="SimplePay fizetési tájékoztató (PDF)"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/simplepay.png" alt="SimplePay" className="h-7 w-auto object-contain" />
+            </a>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo-googlepay.png" alt="Google Pay"  className="h-7 w-auto object-contain" />
             {/* eslint-disable-next-line @next/next/no-img-element */}

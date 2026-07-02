@@ -1,5 +1,10 @@
 import { Resend } from "resend";
 import type { Database } from "@/types/supabase";
+import {
+  ORDER_CONFIRMATION_SUBTITLE,
+  orderConfirmationImportantNotesHtml,
+} from "@/lib/order-confirmation-copy";
+import { formatSimplePayTransactionId } from "@/lib/simplepay-legal";
 
 type Order = Database["public"]["Tables"]["orders"]["Row"];
 type OrderItem = Database["public"]["Tables"]["order_items"]["Row"];
@@ -118,7 +123,10 @@ export async function sendOrderConfirmationEmail(params: {
   } else if (params.order.payment_provider === "manual_cod") {
     payBlock = `<p>Utánvét: a futárnak fizet a kézbesítéskor.</p>`;
   } else if (params.order.payment_provider === "simplepay") {
-    payBlock = `<p>A fizetés a SimplePay rendszerén keresztül történt. Rendelését feldolgozzuk.</p>`;
+    const txId = formatSimplePayTransactionId(params.order.payment_reference);
+    payBlock = `<p>A fizetés a SimplePay rendszerén keresztül történt. Rendelését feldolgozzuk.${
+      txId ? `<br/>SimplePay tranzakció azonosító: <strong>${escapeHtml(txId)}</strong>` : ""
+    }</p>`;
   }
 
   const billingName = params.order.billing_name?.trim() || params.order.shipping_name?.trim() || "";
@@ -135,7 +143,8 @@ export async function sendOrderConfirmationEmail(params: {
 
   const inner = `${adminBanner}
     <p>Kedves ${name}!</p>
-    <p>Köszönjük a rendelését. Az alábbiakban összefoglaljuk a fontos adatokat.</p>
+    <p>${escapeHtml(ORDER_CONFIRMATION_SUBTITLE)} Az alábbiakban összefoglaljuk a fontos adatokat.</p>
+    ${orderConfirmationImportantNotesHtml(params.publicOrderLabel)}
     <p><strong>Rendelés:</strong> ${escapeHtml(params.publicOrderLabel)}<br/>
     <strong>Dátum:</strong> ${escapeHtml(new Date(params.order.created_at).toLocaleString("hu-HU"))}<br/>
     <strong>Fizetés:</strong> ${escapeHtml(pay)}<br/>

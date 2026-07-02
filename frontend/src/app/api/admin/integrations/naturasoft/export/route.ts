@@ -10,11 +10,13 @@ export async function GET(request: NextRequest) {
   if (!adminAuth.ok) return adminAuth.response;
 
   const markExported = request.nextUrl.searchParams.get("mark") === "1";
+  const orderId = request.nextUrl.searchParams.get("order_id")?.trim();
 
   try {
     const result = await fetchNatursoftExportXml({
       includeExported: request.nextUrl.searchParams.get("include_exported") === "1",
       markExported,
+      orderIds: orderId ? [orderId] : undefined,
     });
 
     return new NextResponse(result.xml, {

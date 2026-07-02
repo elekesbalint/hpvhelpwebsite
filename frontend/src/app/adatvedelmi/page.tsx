@@ -1,9 +1,13 @@
 import Link from "next/link";
 import SiteLogo from "@/components/SiteLogo";
+import type { Metadata } from "next";
+import { buildPageMetadata } from "@/lib/seo/metadata";
 
-export const metadata = {
-  title: "Adatvédelmi Tájékoztató – HPVhelp",
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: "Adatvédelmi tájékoztató",
+  description: "A HPVhelp webáruház adatvédelmi tájékoztatója – személyes adatok kezelése, Sunmed Kft.",
+  path: "/adatvedelmi",
+});
 
 export default function AdatvedelmiPage() {
   return (
@@ -157,7 +161,7 @@ export default function AdatvedelmiPage() {
             <h2 className="font-serif text-lg font-bold text-brand-900 mb-4">VI. Bankkártyás fizetés</h2>
             <div className="space-y-3">
               <p><strong>Bankkártyás fizetésnél (OTP Mobil – SimplePay):</strong> a Megrendelő a birtokában lévő bankkártya segítségével azonnal teljesítheti a fizetési kötelezettségét. A MEGRENDELÉS gombra kattintva az oldal 3-5 másodperc után átirányítja a Megrendelőt az OTP Mobil (SimplePay) fizető felületre, ahol megadhatja adatait és teljesítheti a fizetést.</p>
-              <p>Elfogadom és hozzájárulok, hogy a(z) Sunmed Kft. (7623 Pécs, Megyeri út 26. fszt. 109.) által a(z) hpvhelp.hu felhasználói adatbázisában tárolt alábbi személyes adataim átadásra kerüljenek az OTP Mobil Kft. (1143 Budapest, Hungária körút 17-19.), mint adatfeldolgozó részére.</p>
+              <p>Elfogadom és hozzájárulok, hogy a(z) Sunmed Kft. (7623 Pécs, Megyeri út 26. fszt. 109.) által a(z) hpvhelp.hu felhasználói adatbázisában tárolt alábbi személyes adataim átadásra kerüljenek a SimplePay Zrt. (1138 Budapest, Váci út 135-139-B. ép. 5. em.), mint adatfeldolgozó részére.</p>
               <p>Az adatkezelő által továbbított adatok köre:</p>
               <ul className="ml-5 list-disc space-y-1">
                 <li>A Vásárló neve</li>

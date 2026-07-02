@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import SimplePayLogoLink from "@/components/SimplePayLogoLink";
 import { getSampleTargetLabel } from "@/lib/checkout-config";
 import { getCartQuantityForProduct, setCartItems, syncCartStock } from "@/lib/cart";
 import { useCart } from "@/hooks/useCart";
@@ -67,23 +68,25 @@ export default function CartPage() {
   const total = subtotal;
 
   return (
-    <div className="min-h-screen bg-[#fdf8f8] text-slate-900">
-      <header className="sticky top-0 z-20 border-b border-brand-100/80 bg-white/80 shadow-sm backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+    <div className="min-h-screen w-full min-w-0 overflow-x-clip bg-[#fdf8f8] text-slate-900">
+      <header className="sticky top-0 z-20 border-b border-brand-100/80 bg-white/80 pt-safe-top shadow-sm backdrop-blur-md">
+        <div className="mx-auto flex min-w-0 max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-white px-4 py-2 text-sm font-semibold text-red-950 shadow-sm transition hover:bg-brand-50"
+            className="inline-flex min-w-0 max-w-[55%] shrink items-center gap-1.5 rounded-xl border border-brand-200 bg-white px-3 py-2 text-xs font-semibold text-red-950 shadow-sm transition hover:bg-brand-50 sm:max-w-none sm:gap-2 sm:px-4 sm:text-sm"
           >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
             </svg>
-            Vissza a webshopba
+            <span className="truncate sm:hidden">Vissza</span>
+            <span className="hidden truncate sm:inline">Vissza a webshopba</span>
           </Link>
-          <SiteLogo withLink={false} size="md" />
+          <SiteLogo withLink={false} size="sm" className="min-w-0 shrink sm:hidden" />
+          <SiteLogo withLink={false} size="md" className="hidden shrink-0 sm:block" />
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-6 py-10">
+      <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-8 pb-page sm:px-6 sm:py-10">
         <div className="mb-8">
           <p className="text-xs font-bold uppercase tracking-widest text-brand-700">Rendelés</p>
           <h1 className="mt-1 text-3xl font-bold text-slate-900">
@@ -233,11 +236,7 @@ export default function CartPage() {
 
               <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-brand-100 bg-brand-50/40 px-4 py-3">
                 <p className="text-center text-xs font-semibold text-red-950/60">Fizetési mód</p>
-                <img
-                  src="/simplepay-by-otp.png"
-                  alt="SimplePay by OTP Mobile"
-                  className="h-8 w-auto max-w-[220px] object-contain"
-                />
+                <SimplePayLogoLink className="h-8 w-auto max-w-[220px] object-contain" />
               </div>
               <p className="mt-2 text-center text-xs text-red-950/40">
                 Biztonságos fizetés · SSL titkosítás

@@ -5,6 +5,7 @@ import { createServiceSupabase } from "@/lib/server-supabase";
 import { finalizeSimplePaySuccessOrder } from "@/lib/simplepay-finalize-paid";
 import { sendPaymentFailedEmail } from "@/lib/resend-notifications";
 import { getSimplePayConfig, verifySimplePaySignature } from "@/lib/simplepay";
+import { resolveOrderIdFromSimplePayOrderRef } from "@/lib/simplepay-order-ref";
 
 /** SimplePay GET redirect: `r` = base64(JSON), `s` = HMAC-SHA384 aláírás (ugyanaz, mint a PHP SDK). */
 function getQuery(url: URL, name: string): string {
@@ -20,7 +21,7 @@ async function notifyPaymentFailedByOrderId(orderId: string, reasonLabel: string
   const customerEmail = await resolveCustomerEmailForOrder(svc, order);
   const mail = await sendPaymentFailedEmail({
     order,
-    publicOrderLabel: formatOrderPublicId(order.id),
+    publicOrderLabel: formatOrderPublicId(order),
     reasonLabel,
     customerEmail,
   });
@@ -40,18 +41,20 @@ export async function GET(request: NextRequest) {
   const s = getQuery(url, "s");
   const orderIdFromQuery = getQuery(url, "orderId");
 
-  const redirectFailed = (orderId: string, reason: string, emailReason: string) => {
+  const redirectFailed = (orderId: string, reason: string, emailReason: string, transactionId?: string | null) => {
     void notifyPaymentFailedByOrderId(orderId, emailReason);
     const target = new URL("/checkout/payment-failed", origin);
     if (orderId) target.searchParams.set("orderId", orderId);
     target.searchParams.set("reason", reason);
+    if (transactionId) target.searchParams.set("transactionId", transactionId);
     return NextResponse.redirect(target);
   };
 
-  const redirectSuccess = (orderId: string) => {
+  const redirectSuccess = (orderId: string, transactionId?: string | null) => {
     const target = new URL("/checkout/success", origin);
     if (orderId) target.searchParams.set("orderId", orderId);
     target.searchParams.set("payment", "card");
+    if (transactionId) target.searchParams.set("transactionId", transactionId);
     return NextResponse.redirect(target);
   };
 
@@ -90,22 +93,30 @@ export async function GET(request: NextRequest) {
     }
 
     const orderRef = typeof data.o === "string" ? data.o : "";
-    const orderId = orderRef.startsWith("ORDER_") ? orderRef.slice(6) : orderIdFromQuery;
+    const svc = createServiceSupabase();
+    const orderIdFromRef =
+      orderRef && svc
+        ? await resolveOrderIdFromSimplePayOrderRef(orderRef, async (orderNumber) => {
+            const { data: row } = await svc.from("orders").select("id").eq("order_number", orderNumber).maybeSingle();
+            return row?.id ?? null;
+          })
+        : null;
+    const orderId = orderIdFromRef || orderIdFromQuery;
     const event = String(data.e ?? "").toUpperCase();
     const txRef = data.t ?? data.transactionId;
     const paymentRef = txRef != null && txRef !== "" ? String(txRef) : null;
 
     if (event === "SUCCESS") {
       if (orderId) await finalizeSimplePaySuccessOrder(orderId, paymentRef);
-      return redirectSuccess(orderId);
+      return redirectSuccess(orderId, paymentRef);
     }
-    if (event === "CANCEL") return redirectFailed(orderId, "cancel", "A fizetést megszakítottad.");
-    if (event === "TIMEOUT") return redirectFailed(orderId, "timeout", "A fizetési idő lejárt.");
+    if (event === "CANCEL") return redirectFailed(orderId, "cancel", "A fizetést megszakítottad.", paymentRef);
+    if (event === "TIMEOUT") return redirectFailed(orderId, "timeout", "A fizetési idő lejárt.", paymentRef);
     if (event === "FAIL") {
-      return redirectFailed(orderId, "fail", "A bankkártyás fizetés nem lett autorizálva (sikertelen).");
+      return redirectFailed(orderId, "fail", "A bankkártyás fizetés nem lett autorizálva (sikertelen).", paymentRef);
     }
 
-    return redirectFailed(orderId, "unknown", "A fizetés eredménye nem egyértelmű.");
+    return redirectFailed(orderId, "unknown", "A fizetés eredménye nem egyértelmű.", paymentRef);
   } catch {
     return NextResponse.redirect(new URL("/checkout", origin));
   }

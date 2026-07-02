@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Footer from "@/components/Footer";
 import PublicSiteHeader from "@/components/PublicSiteHeader";
+import { buildPageMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Letölthető dokumentumok – HPVhelp",
-  description: "Sunmed Kft. webáruház – letölthető nyomtatványok és dokumentumok.",
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: "Letölthető dokumentumok",
+  description: "Sunmed Kft. webáruház – letölthető nyomtatványok, visszaküldési lapok és dokumentumok.",
+  path: "/letoltheto-dokumentumok",
+});
 
 const DOCUMENTS = [
   {

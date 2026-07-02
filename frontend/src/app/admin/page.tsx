@@ -246,7 +246,7 @@ export default function AdminDashboardPage() {
                   return (
                     <div key={order.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 transition hover:bg-brand-50/30">
                       <div>
-                        <p className="font-mono text-xs text-slate-400" title={order.id}>{formatOrderPublicId(order.id)}</p>
+                        <p className="font-mono text-xs text-slate-400" title={order.id}>{formatOrderPublicId(order)}</p>
                         <p className="text-sm font-semibold text-slate-900">
                           {new Date(order.created_at).toLocaleDateString("hu-HU")}
                         </p>

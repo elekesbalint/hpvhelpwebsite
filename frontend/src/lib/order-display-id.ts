@@ -1,9 +1,19 @@
+export type OrderDisplayRef = {
+  id: string;
+  order_number?: string | null;
+};
+
 /**
- * Rövid, vevőbarát rendelésazonosító: az UUID első 8 hex számjegye (nagybetű), # nélkül.
- * A Supabase `orders.id` továbbra is teljes UUID marad URL-ben és lekérdezésben.
+ * Rövid, vevőbarát rendelésazonosító: HH00001, vagy régi UUID-alapú 8 hex (nagybetű).
  */
-export function getOrderPublicCode(orderId: string): string {
-  const trimmed = orderId.trim();
+export function getOrderPublicCode(order: OrderDisplayRef | string): string {
+  if (typeof order !== "string") {
+    const serial = order.order_number?.trim();
+    if (serial) return serial;
+    return getOrderPublicCode(order.id);
+  }
+
+  const trimmed = order.trim();
   if (!trimmed) return "—";
   const compact = trimmed.replace(/-/g, "").toLowerCase();
   if (/^[0-9a-f]{32}$/.test(compact)) return compact.slice(0, 8).toUpperCase();
@@ -11,8 +21,15 @@ export function getOrderPublicCode(orderId: string): string {
   return (head || trimmed.slice(0, 8)).toUpperCase() || "—";
 }
 
-/** Megjelenítés: #0FA99F49 */
-export function formatOrderPublicId(orderId: string): string {
-  const code = getOrderPublicCode(orderId);
+/** NaturaSoft iktatószám / rendeles_id – hash nélkül (HH00001). */
+export function getOrderNaturasoftId(order: OrderDisplayRef): string {
+  const serial = order.order_number?.trim();
+  if (serial) return serial;
+  return getOrderPublicCode(order.id);
+}
+
+/** Megjelenítés: #HH00001 vagy #0FA99F49 (régi rendelések) */
+export function formatOrderPublicId(order: OrderDisplayRef | string): string {
+  const code = getOrderPublicCode(order);
   return code === "—" ? "—" : `#${code}`;
 }

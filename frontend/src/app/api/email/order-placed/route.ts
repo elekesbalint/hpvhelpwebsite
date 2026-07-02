@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   const result = await sendOrderConfirmationEmail({
     order,
     items: items ?? [],
-    publicOrderLabel: formatOrderPublicId(order.id),
+    publicOrderLabel: formatOrderPublicId(order),
     customerEmail,
   });
 

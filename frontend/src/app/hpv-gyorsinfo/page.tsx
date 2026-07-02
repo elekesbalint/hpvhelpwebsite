@@ -2,12 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Footer from "@/components/Footer";
 import PublicSiteHeader from "@/components/PublicSiteHeader";
+import { buildPageMetadata } from "@/lib/seo/metadata";
 import { buildCategoryFilterUrl, CATEGORY_SLUGS } from "@/lib/product-search-url";
 
-export const metadata: Metadata = {
-  title: "HPV gyorsinfo – HPVhelp",
-  description: "Gyors információ a humán papillomavírus (HPV) fertőzésről, szűrési és kezelési lehetőségekről.",
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: "HPV gyorsinfo",
+  description:
+    "Gyors információ a humán papillomavírus (HPV) fertőzésről, szűrési és kezelési lehetőségekről.",
+  path: "/hpv-gyorsinfo",
+});
 
 export default function HpvGyorsinfoPage() {
   return (

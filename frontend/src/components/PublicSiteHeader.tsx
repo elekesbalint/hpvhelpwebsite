@@ -21,7 +21,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/hpv-gyorsinfo", label: "HPV gyorsinfo" },
   { href: "/ugyfelszolgalat", label: "Ügyfélszolgálat" },
   { href: "/rolunk", label: "Rólunk" },
-  { href: "/referenciak", label: "Referenciák", disabled: true },
 ];
 
 const NEOTEST_URL = "https://neotest.hu";
@@ -92,7 +91,7 @@ export default function PublicSiteHeader({ showInfoBar = true }: Props) {
   return (
     <>
       {showInfoBar ? (
-        <div className="bg-brand-900 text-red-50">
+        <div className="bg-brand-900 pt-safe-top text-red-50">
           <div className="mx-auto flex w-full min-w-0 max-w-[1480px] flex-col items-center gap-2 px-4 py-2.5 text-[11px] font-medium leading-snug sm:flex-row sm:flex-wrap sm:justify-center sm:gap-x-5 sm:gap-y-1 sm:px-6 sm:text-xs">
             <div className="flex w-full min-w-0 flex-wrap items-center justify-center gap-x-4 gap-y-1.5 sm:w-auto sm:flex-nowrap">
               <span className="inline-flex items-center gap-1.5">
@@ -138,18 +137,18 @@ export default function PublicSiteHeader({ showInfoBar = true }: Props) {
         </div>
       ) : null}
 
-      <header className="sticky top-0 z-30 min-w-0 border-b border-brand-100/80 bg-white/90 shadow-sm backdrop-blur-md">
+      <header className="sticky top-0 z-30 min-w-0 border-b border-brand-100/80 bg-white/90 pt-safe-top shadow-sm backdrop-blur-md">
         <div className="mx-auto w-full min-w-0 max-w-[1480px] px-3 py-2.5 sm:px-5 sm:py-4 md:px-6">
-          {/* Mobil: logo + akciók + hamburger */}
+          {/* Mobil: logo + keresés + kosár + menü (neotest / belépés a lenyíló menüben) */}
           <div className="flex min-w-0 items-center gap-2 md:hidden">
             <Link
               href="/"
-              className="inline-flex min-w-0 max-w-[54%] shrink items-center overflow-hidden rounded-xl outline-none ring-brand-600/30 transition hover:opacity-95 focus-visible:ring-2"
+              className="inline-flex min-w-0 flex-1 items-center overflow-hidden rounded-xl outline-none ring-brand-600/30 transition hover:opacity-95 focus-visible:ring-2"
               onClick={() => setMobileMenuOpen(false)}
             >
-              <SiteLogo withLink={false} size="md" />
+              <SiteLogo withLink={false} size="sm" />
             </Link>
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
+            <div className="flex shrink-0 items-center gap-1">
               <HeaderSearchToggleButton
                 open={searchOpen}
                 onClick={() => {
@@ -158,17 +157,6 @@ export default function PublicSiteHeader({ showInfoBar = true }: Props) {
                 }}
                 className="h-10 w-10"
               />
-              <a
-                href={NEOTEST_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-press inline-flex shrink-0 items-center gap-0.5 rounded-xl bg-gradient-to-r from-rose-700 to-brand-900 px-2 py-2 text-[10px] font-bold leading-tight text-white shadow-md shadow-brand-900/20 transition hover:from-rose-600 hover:to-brand-800"
-              >
-                <span className="max-w-[4.5rem] truncate sm:max-w-none">neotest.hu</span>
-                <svg className="h-3 w-3 shrink-0 opacity-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
               <Link href="/cart" aria-label="Kosár" className="btn-press relative shrink-0 rounded-lg border border-brand-200 p-2 text-red-950 transition hover:bg-brand-50">
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                   <circle cx="9" cy="20" r="1" />
@@ -181,35 +169,12 @@ export default function PublicSiteHeader({ showInfoBar = true }: Props) {
                   </span>
                 ) : null}
               </Link>
-              {authLoading ? (
-                <div className="h-9 w-16 shrink-0 rounded-lg border border-brand-100 bg-white p-1.5">
-                  <div className="skeleton h-full w-full rounded-md" />
-                </div>
-              ) : isAuthenticated ? (
-                <Link
-                  href="/dashboard"
-                  className="btn-press inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-brand-200 bg-white text-brand-800 shadow-sm transition hover:bg-brand-50"
-                  aria-label="Fiókom"
-                >
-                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M20 21a8 8 0 0 0-16 0" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                </Link>
-              ) : (
-                <Link
-                  href="/login"
-                  className="btn-press shrink-0 rounded-lg bg-brand-900 px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-brand-300 transition hover:bg-brand-800"
-                >
-                  Belépés
-                </Link>
-              )}
               <button
                 type="button"
                 aria-expanded={mobileMenuOpen}
                 aria-controls="mobile-main-nav"
                 aria-label={mobileMenuOpen ? "Menü bezárása" : "Menü megnyitása"}
-                className="btn-press ml-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-brand-200 bg-white text-brand-900 shadow-sm transition hover:bg-brand-50"
+                className="btn-press inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-brand-200 bg-white text-brand-900 shadow-sm transition hover:bg-brand-50"
                 onClick={() => setMobileMenuOpen((o) => !o)}
               >
                 {mobileMenuOpen ? (
@@ -224,6 +189,14 @@ export default function PublicSiteHeader({ showInfoBar = true }: Props) {
               </button>
             </div>
           </div>
+
+          {searchOpen ? (
+            <div className="mt-2 md:hidden">
+              <Suspense fallback={null}>
+                <HeaderProductSearch open={searchOpen} onOpenChange={setSearchOpen} embedded />
+              </Suspense>
+            </div>
+          ) : null}
 
           {/* Desktop grid */}
           <div className="hidden gap-3 gap-x-3 md:grid md:[grid-template-areas:'logo_nav_actions'] md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center md:gap-x-3 lg:gap-x-6 xl:gap-x-8">
@@ -318,7 +291,7 @@ export default function PublicSiteHeader({ showInfoBar = true }: Props) {
           </div>
 
           <Suspense fallback={null}>
-            <HeaderProductSearch open={searchOpen} onOpenChange={setSearchOpen} />
+            <HeaderProductSearch open={searchOpen} onOpenChange={setSearchOpen} className="hidden md:block" />
           </Suspense>
 
           {/* Mobil lenyíló menü */}
@@ -327,6 +300,39 @@ export default function PublicSiteHeader({ showInfoBar = true }: Props) {
             className={`border-t border-brand-100 bg-white md:hidden ${mobileMenuOpen ? "block" : "hidden"}`}
           >
             <nav aria-label="Fő navigáció (mobil)" className="flex max-h-[min(70vh,480px)] flex-col overflow-y-auto py-1">
+              <a
+                href={NEOTEST_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mx-3 mb-2 inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose-700 to-brand-900 px-4 py-3 text-sm font-bold text-white shadow-md"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                neotest.hu
+                <svg className="h-3.5 w-3.5 shrink-0 opacity-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+              {authLoading ? (
+                <div className="mx-3 mb-2 h-11 rounded-lg border border-brand-100 bg-white p-2">
+                  <div className="skeleton h-full w-full rounded-md" />
+                </div>
+              ) : isAuthenticated ? (
+                <Link
+                  href="/dashboard"
+                  className={navLinkClass(pathname === "/dashboard")}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Fiókom
+                </Link>
+              ) : (
+                <Link
+                  href="/login"
+                  className="mx-3 mb-2 block rounded-xl bg-brand-900 px-4 py-3 text-center text-sm font-semibold text-white shadow-sm"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Bejelentkezés
+                </Link>
+              )}
               {NAV_ITEMS.map((item) => {
                 if (item.disabled) {
                   return (

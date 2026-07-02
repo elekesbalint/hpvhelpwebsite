@@ -24,17 +24,31 @@ export async function GET(request: Request) {
   const supabaseServiceRoleConfigured = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY?.trim());
   const supabaseUrlConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL?.trim());
 
+  const simplePayMode = process.env.SIMPLEPAY_MODE?.trim().toLowerCase() === "production" ? "production" : "sandbox";
+  const simplePayConfigured =
+    simplePayMode === "production"
+      ? Boolean(process.env.SIMPLEPAY_MERCHANT?.trim() && process.env.SIMPLEPAY_SECRET_KEY?.trim())
+      : Boolean(process.env.SIMPLEPAY_SANDBOX_MERCHANT?.trim() && process.env.SIMPLEPAY_SANDBOX_SECRET_KEY?.trim());
+
   const allOk =
     resendApiKeyConfigured &&
     resendFromConfigured &&
     supabaseServiceRoleConfigured &&
-    supabaseUrlConfigured;
+    supabaseUrlConfigured &&
+    simplePayConfigured;
 
   const hints: string[] = [];
   if (!resendApiKeyConfigured) hints.push("RESEND_API_KEY hiányzik → Resend nem küld semmit");
   if (!resendFromConfigured) hints.push("RESEND_FROM hiányzik → alapértelmezett onboarding@resend.dev lesz a feladó");
   if (!supabaseServiceRoleConfigured) hints.push("SUPABASE_SERVICE_ROLE_KEY hiányzik → SimplePay fizetés utáni email (finalize) nem fut, mert createServiceSupabase() null-t ad vissza");
   if (!supabaseUrlConfigured) hints.push("NEXT_PUBLIC_SUPABASE_URL hiányzik");
+  if (!simplePayConfigured) {
+    hints.push(
+      simplePayMode === "production"
+        ? "SimplePay éles: SIMPLEPAY_MODE=production mellett SIMPLEPAY_MERCHANT + SIMPLEPAY_SECRET_KEY kell"
+        : "SimplePay sandbox: SIMPLEPAY_SANDBOX_MERCHANT + SIMPLEPAY_SANDBOX_SECRET_KEY kell",
+    );
+  }
 
   return NextResponse.json({
     ok: allOk,
@@ -43,6 +57,9 @@ export async function GET(request: Request) {
     adminEmailConfigured,
     supabaseServiceRoleConfigured,
     supabaseUrlConfigured,
+    simplePayMode,
+    simplePayConfigured,
+    siteUrlConfigured: Boolean(process.env.NEXT_PUBLIC_SITE_URL?.trim()),
     hints: hints.length ? hints : ["Minden változó be van állítva."],
   });
 }

@@ -17,7 +17,12 @@ export const FIXED_SHIPPING_ROWS = [
   { label: "Személyes átvétel (7623 Pécs, Megyeri út 26. fszt. 109.)", fee: SHIPPING_FEES_HU.pickup },
 ] as const;
 
-export function shippingFeeForSubtotal(method: ShippingFeeMethod, _productSubtotal?: number): number {
+export function shippingFeeForSubtotal(
+  method: ShippingFeeMethod,
+  options?: { freeShipping?: boolean },
+): number {
+  if (options?.freeShipping) return 0;
+
   switch (method) {
     case "posta":
       return SHIPPING_FEES_HU.mplHome;

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { resolveExportArticleNumber } from "@/lib/integrations/naturasoft/article-number";
 import { billingAddressDisplay, billingNameDisplay } from "@/lib/order-billing";
 import { formatOrderPublicId } from "@/lib/order-display-id";
 import {
@@ -11,13 +12,14 @@ import {
   orderCanCreateShippingLabel,
   requestShippingLabel,
 } from "@/lib/shipping/admin-label-client";
-import { pickupProviderLabel, shippingMethodLabel } from "@/lib/shipping/carrier";
+import { effectiveShippingMethod, pickupProviderLabel, shippingMethodLabel } from "@/lib/shipping/carrier";
 import { orderEligibleForSimplePayRetry, startSimplePayPaymentForOrder } from "@/lib/simplepay-retry-client";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/supabase";
 
 type Order = Database["public"]["Tables"]["orders"]["Row"];
 type OrderItem = Database["public"]["Tables"]["order_items"]["Row"];
+type ProductSkuRow = Pick<Database["public"]["Tables"]["products"]["Row"], "id" | "sku" | "slug" | "description">;
 type OrderStatus = Database["public"]["Enums"]["order_status"];
 
 function getOrderExtra(order: Order | null): { shipping_email?: string; payment_method?: string | null } {
@@ -71,6 +73,9 @@ export default function AdminOrderDetailsPage() {
   const [labelLoading, setLabelLoading] = useState(false);
   const [order, setOrder] = useState<Order | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
+  const [productsById, setProductsById] = useState<Map<string, ProductSkuRow>>(new Map());
+  const [natursoftResetLoading, setNatursoftResetLoading] = useState(false);
+  const [natursoftPreviewLoading, setNatursoftPreviewLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -96,6 +101,20 @@ export default function AdminOrderDetailsPage() {
 
     setOrder(orderRow);
     setItems(orderItems ?? []);
+
+    const productIds = Array.from(
+      new Set((orderItems ?? []).map((item) => item.product_id).filter(Boolean)),
+    ) as string[];
+    if (productIds.length > 0) {
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, sku, slug, description")
+        .in("id", productIds);
+      setProductsById(new Map((products ?? []).map((p) => [p.id, p])));
+    } else {
+      setProductsById(new Map());
+    }
+
     setLoading(false);
   }, [orderId]);
 
@@ -227,6 +246,92 @@ export default function AdminOrderDetailsPage() {
     setSuccess("SimplePay fizetőoldal megnyitása…");
   }
 
+  async function handleResetNatursoftExport() {
+    if (!order) return;
+    const confirmed = window.confirm(
+      "A NaturaSoft export jelölés törlődik — a következő import újra felveszi ezt a rendelést. Előtte töröld a hibás megrendelést a NaturaSoftban. Folytatod?",
+    );
+    if (!confirmed) return;
+
+    setError(null);
+    setSuccess(null);
+    setNatursoftResetLoading(true);
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) {
+      setNatursoftResetLoading(false);
+      setError("Nincs aktív admin munkamenet.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/integrations/naturasoft/reset-export", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok) {
+        setError(json.error ?? "NaturaSoft export visszaállítás sikertelen.");
+        return;
+      }
+      setSuccess("NaturaSoft export jelölés törölve. A NaturaSoft következő lekérésekor újra importálható.");
+      await loadData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "NaturaSoft export visszaállítás sikertelen.");
+    } finally {
+      setNatursoftResetLoading(false);
+    }
+  }
+
+  async function handleNatursoftXmlPreview() {
+    if (!order) return;
+    setError(null);
+    setNatursoftPreviewLoading(true);
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) {
+      setNatursoftPreviewLoading(false);
+      setError("Nincs aktív admin munkamenet.");
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `/api/admin/integrations/naturasoft/export?include_exported=1&order_id=${order.id}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const xml = await res.text();
+      if (!res.ok) {
+        setError(xml.slice(0, 300) || "XML előnézet sikertelen.");
+        return;
+      }
+      const tetelCount = (xml.match(/<tetel>/g) ?? []).length;
+      if (tetelCount < 2) {
+        setError(`Figyelem: az XML-ben csak ${tetelCount} tételsor van — ellenőrizd a rendelési tételeket.`);
+      } else if (/ISMERETLEN|<cikkszam>ZNS/i.test(xml)) {
+        setError(
+          "Figyelem: az XML-ben hibás cikkszám van (ISMERETLEN vagy ZNS*) — admin SKU legyen SAM001, SUN594 stb.",
+        );
+      } else if (!/<cikkszam>SAM001<\/cikkszam>|<cikkszam>SUN594<\/cikkszam>/.test(xml) && tetelCount >= 2) {
+        setError("Figyelem: az XML-ben nincs ismert termék cikkszám (SAM001, SUN594) — ellenőrizd a termék SKU-t.");
+      }
+      const blob = new Blob([xml], { type: "application/xml" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "XML előnézet sikertelen.");
+    } finally {
+      setNatursoftPreviewLoading(false);
+    }
+  }
+
 
   const st = order ? (statusConfig[order.status] ?? { label: order.status, color: "bg-slate-100 text-slate-600 border-slate-200" }) : null;
   const orderExtra = getOrderExtra(order);
@@ -268,7 +373,7 @@ export default function AdminOrderDetailsPage() {
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-brand-700">Rendelésszám</p>
                   <p className="mt-1 font-mono text-sm font-semibold text-slate-900" title={order.id}>
-                    {formatOrderPublicId(order.id)}
+                    {formatOrderPublicId(order)}
                   </p>
                 </div>
                 {st ? (
@@ -351,17 +456,28 @@ export default function AdminOrderDetailsPage() {
                 <p className="text-sm text-red-950/50">Nincs tétel ebben a rendelésben.</p>
               ) : (
                 <div className="space-y-2">
-                  {items.map((item) => (
+                  {items.map((item) => {
+                    const product = item.product_id ? productsById.get(item.product_id) : undefined;
+                    const exportSku = resolveExportArticleNumber(item, product);
+                    const skuWarning = exportSku === "ISMERETLEN";
+                    return (
                     <div
                       key={item.id}
                       className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-100 bg-brand-50/30 px-4 py-3 text-sm"
                     >
-                      <span className="font-semibold text-slate-900">{item.product_name}</span>
+                      <div className="min-w-0">
+                        <span className="font-semibold text-slate-900">{item.product_name}</span>
+                        <p className={`mt-0.5 text-xs ${skuWarning ? "font-semibold text-rose-700" : "text-red-950/55"}`}>
+                          NaturaSoft cikkszám: {exportSku}
+                          {skuWarning ? " — hiányzik, a tétel kimaradhat az importból!" : null}
+                        </p>
+                      </div>
                       <span className="font-semibold text-brand-900">
                         {item.quantity} × {Number(item.unit_price).toLocaleString("hu-HU")} Ft = {Number(item.line_total).toLocaleString("hu-HU")} Ft
                       </span>
                     </div>
-                  ))}
+                    );
+                  })}
                   <div className="flex justify-end border-t border-brand-100 pt-3">
                     <p className="text-base font-bold text-brand-900">
                       Összesen: {Number(order.total).toLocaleString("hu-HU")} Ft
@@ -377,7 +493,7 @@ export default function AdminOrderDetailsPage() {
               <h2 className="mb-4 text-base font-bold text-slate-900">Szállítási adatok</h2>
               <div className="space-y-3 text-sm">
                 {[
-                  { label: "Szállítási mód", value: shippingMethodLabel(order.shipping_method) },
+                  { label: "Szállítási mód", value: shippingMethodLabel(effectiveShippingMethod(order) ?? order.shipping_method) },
                   ...(order.pickup_point_name
                     ? [
                         { label: "Csomagpont", value: order.pickup_point_name },
@@ -417,6 +533,53 @@ export default function AdminOrderDetailsPage() {
               <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
                 <h2 className="mb-4 text-base font-bold text-slate-900">Megjegyzés a rendeléshez</h2>
                 <p className="whitespace-pre-wrap text-sm text-slate-900">{order.notes}</p>
+              </div>
+            ) : null}
+
+            {(order.status === "paid" || order.status === "fulfilled") ? (
+              <div className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
+                <h2 className="mb-4 text-base font-bold text-slate-900">NaturaSoft export</h2>
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <p className="text-xs font-semibold text-red-950/50">Export státusz</p>
+                    <p className="mt-0.5 text-slate-900">
+                      {order.natursoft_exported_at
+                        ? `Exportálva: ${new Date(order.natursoft_exported_at).toLocaleString("hu-HU")}`
+                        : "Még nem exportált (várólistán)"}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      disabled={natursoftPreviewLoading}
+                      onClick={() => void handleNatursoftXmlPreview()}
+                      className="rounded-xl border border-brand-200 px-4 py-2.5 text-xs font-bold text-brand-900 transition hover:bg-brand-50 disabled:opacity-50"
+                    >
+                      {natursoftPreviewLoading ? "XML betöltése…" : "XML előnézet (ez a rendelés)"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={natursoftResetLoading}
+                      onClick={() => void handleResetNatursoftExport()}
+                      className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-950 transition hover:bg-amber-100 disabled:opacity-50"
+                    >
+                      {natursoftResetLoading ? "Feldolgozás…" : "Újra-exportálás engedélyezése"}
+                    </button>
+                  </div>
+                  <p className="text-xs text-red-950/50">
+                    Ha a NaturaSoftban hiányos a rendelés: töröld ott a megrendelést, majd kattints az újra-export gombra.
+                  </p>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-950">
+                    <p className="font-bold">Ha csak a postaköltség jön át, a termékek nem:</p>
+                    <ul className="mt-1 list-inside list-disc space-y-0.5">
+                      <li>NaturaSoft 4. lépés szekció: <strong>tetelek</strong> (NE tetelek/tetel)</li>
+                      <li>Termék azonosítás: <strong>Cikkszám alapján</strong></li>
+                      <li>NaturaSoft 2. lépés: <strong>Megjegyzés</strong> = <code>megjegyzes</code></li>
+                      <li>NaturaSoft 3. lépés cím: Ország = <code>szamlazasi_orszag</code>, Irsz = <code>szamlazasi_irsz</code>, Város = <code>szamlazasi_varos</code>, Cím = <code>szamlazasi_utca</code> (szállításnál <code>szallitasi_*</code>)</li>
+                      <li>SAM termékeknél az ÁFA: <strong>TAM</strong> (0%), nem 27%</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             ) : null}
 

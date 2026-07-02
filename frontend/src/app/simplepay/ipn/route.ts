@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceSupabase } from "@/lib/server-supabase";
 import { finalizeSimplePaySuccessOrder } from "@/lib/simplepay-finalize-paid";
+import { resolveOrderIdFromSimplePayOrderRef } from "@/lib/simplepay-order-ref";
 import { createSimplePaySignature, getSimplePayConfig, simplePayJsonStringify, verifySimplePaySignature } from "@/lib/simplepay";
 import type { Database } from "@/types/supabase";
 
@@ -55,11 +56,19 @@ export async function POST(request: NextRequest) {
 
     const payload = JSON.parse(raw) as IpnPayload;
     const orderRef = payload.orderRef ?? "";
-    const orderId = orderRef.startsWith("ORDER_") ? orderRef.slice(6) : "";
-    if (!orderId) return NextResponse.json({ ok: true });
 
     const serviceSupabase = createServiceSupabase();
     if (!serviceSupabase) return NextResponse.json({ ok: true, skipped: "Missing SUPABASE_SERVICE_ROLE_KEY" });
+
+    const orderId = await resolveOrderIdFromSimplePayOrderRef(orderRef, async (orderNumber) => {
+      const { data } = await serviceSupabase
+        .from("orders")
+        .select("id")
+        .eq("order_number", orderNumber)
+        .maybeSingle();
+      return data?.id ?? null;
+    });
+    if (!orderId) return NextResponse.json({ ok: true });
 
     const { data: existing } = await serviceSupabase
       .from("orders")

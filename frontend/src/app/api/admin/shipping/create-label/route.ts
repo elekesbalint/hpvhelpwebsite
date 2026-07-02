@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const publicId = formatOrderPublicId(order.id);
+  const publicId = formatOrderPublicId(order);
   const recipientEmail = order.shipping_email?.trim() || "info@sunmed.hu";
   const recipientPhone = order.shipping_phone?.trim() || "+36308657792";
   const codAmount = order.payment_provider === "manual_cod" ? Number(order.total) : undefined;

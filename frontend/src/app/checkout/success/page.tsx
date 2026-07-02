@@ -6,7 +6,14 @@ import { Suspense, useEffect, useState } from "react";
 import { formatOrderPublicId } from "@/lib/order-display-id";
 import { supabase } from "@/lib/supabase";
 import SiteLogo from "@/components/SiteLogo";
+import OrderTotalsBreakdown from "@/components/OrderTotalsBreakdown";
+import SimplePayTransactionId from "@/components/SimplePayTransactionId";
 import { BANK_DETAILS } from "@/lib/bank-details";
+import {
+  ORDER_CONFIRMATION_IMPORTANT_NOTES,
+  ORDER_CONFIRMATION_SUBTITLE,
+  ORDER_CONFIRMATION_TITLE,
+} from "@/lib/order-confirmation-copy";
 import type { Database } from "@/types/supabase";
 
 type Order = Database["public"]["Tables"]["orders"]["Row"];
@@ -20,6 +27,7 @@ const paymentMethodLabel: Record<string, string> = {
 function CheckoutSuccessContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("orderId");
+  const transactionIdFromQuery = searchParams.get("transactionId");
   const payment = searchParams.get("payment") ?? "card";
 
   const [order, setOrder] = useState<Order | null>(null);
@@ -38,7 +46,25 @@ function CheckoutSuccessContent() {
     });
   }, [orderId]);
 
-  const publicOrderId = orderId ? formatOrderPublicId(orderId) : "—";
+  useEffect(() => {
+    if (!order || items.length === 0) return;
+    void import("@/lib/analytics/track").then(({ trackPurchase }) => {
+      trackPurchase({
+        orderId: order.id,
+        value: Number(order.total),
+        items: items.map((item) => ({
+          item_id: item.product_id ?? item.product_name,
+          item_name: item.product_name,
+          price: Number(item.unit_price),
+          quantity: item.quantity,
+        })),
+      });
+    });
+  }, [order, items]);
+
+  const publicOrderId = order ? formatOrderPublicId(order) : orderId ? formatOrderPublicId(orderId) : "—";
+  const simplePayTransactionId =
+    transactionIdFromQuery ?? (payment === "card" ? order?.payment_reference : null);
 
   return (
     <div className="min-h-screen bg-[#fdf8f8] text-slate-900">
@@ -66,10 +92,13 @@ function CheckoutSuccessContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h1 className="text-3xl font-bold text-slate-900">Rendelés sikeresen leadva!</h1>
-              <p className="mt-2 text-red-950/60">
-                Rendelését sikeresen fogadtuk. Köszönjük vásárlását!
-              </p>
+              <h1 className="text-3xl font-bold text-slate-900">{ORDER_CONFIRMATION_TITLE}</h1>
+              <p className="mt-2 text-red-950/60">{ORDER_CONFIRMATION_SUBTITLE}</p>
+              {payment === "card" ? (
+                <div className="mt-3">
+                  <SimplePayTransactionId transactionId={simplePayTransactionId} />
+                </div>
+              ) : null}
             </div>
 
             {/* Order details card */}
@@ -89,14 +118,12 @@ function CheckoutSuccessContent() {
               <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
                 <p className="mb-2 text-sm font-bold text-amber-900">Fontos tudnivalók</p>
                 <ul className="space-y-1.5 text-sm text-amber-800">
-                  <li className="flex items-start gap-2">
-                    <span className="mt-0.5 text-amber-500">•</span>
-                    Rendelését a következő munkanapon kezdjük el feldolgozni.
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="mt-0.5 text-amber-500">•</span>
-                    A kiszállítás előtt emailben értesítjük.
-                  </li>
+                  {ORDER_CONFIRMATION_IMPORTANT_NOTES.map((note) => (
+                    <li key={note} className="flex items-start gap-2">
+                      <span className="mt-0.5 text-amber-500">•</span>
+                      {note}
+                    </li>
+                  ))}
                   <li className="flex items-start gap-2">
                     <span className="mt-0.5 text-amber-500">•</span>
                     Kérdés esetén hivatkozzon a rendelésszámra: <span className="font-bold">{publicOrderId}</span>
@@ -136,12 +163,7 @@ function CheckoutSuccessContent() {
                       <p className="font-bold text-brand-900">{Number(item.line_total).toLocaleString("hu-HU")} Ft</p>
                     </div>
                   ))}
-                  <div className="flex items-center justify-between border-t border-brand-100 pt-3">
-                    <p className="text-sm font-bold text-slate-900">Végösszeg</p>
-                    <p className="text-lg font-bold text-brand-900">
-                      {Number(order.total).toLocaleString("hu-HU")} {order.currency}
-                    </p>
-                  </div>
+                  <OrderTotalsBreakdown order={order} />
                 </div>
               </div>
             ) : null}

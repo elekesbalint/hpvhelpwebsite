@@ -39,6 +39,7 @@ export default function AdminCouponsPage() {
   const [validFrom, setValidFrom] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [appliesToAll, setAppliesToAll] = useState(true);
+  const [isPublic, setIsPublic] = useState(true);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [productSearch, setProductSearch] = useState("");
 
@@ -74,7 +75,7 @@ export default function AdminCouponsPage() {
     setCode(""); setDiscountType("percent"); setDiscountValue(""); setDescription("");
     setMinOrderAmount(""); setMaxUses(""); setMaxUsesPerUser("");
     setValidFrom(""); setExpiresAt("");
-    setAppliesToAll(true); setSelectedProductIds([]);
+    setAppliesToAll(true); setIsPublic(true); setSelectedProductIds([]);
     setProductSearch(""); setEditingCoupon(null);
   }
 
@@ -95,6 +96,7 @@ export default function AdminCouponsPage() {
     setValidFrom(toLocalDatetime(coupon.valid_from));
     setExpiresAt(toLocalDatetime(coupon.expires_at));
     setAppliesToAll(!restrictedIds || restrictedIds.length === 0);
+    setIsPublic(coupon.is_public);
     setSelectedProductIds(restrictedIds ?? []);
     setProductSearch("");
     setEditingCoupon(coupon);
@@ -142,6 +144,7 @@ export default function AdminCouponsPage() {
       expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
       applies_to_sale_items: false,
       restricted_product_ids: appliesToAll ? null : selectedProductIds,
+      is_public: isPublic,
     };
 
     try {
@@ -284,6 +287,21 @@ export default function AdminCouponsPage() {
               <textarea rows={2} placeholder="pl. Nyári akció – hírlevél feliratkozóknak" value={description} onChange={(e) => setDescription(e.target.value)} className={`${inputCls} resize-none`} />
             </div>
 
+            <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-brand-100 bg-brand-50/30 p-4">
+              <input
+                type="checkbox"
+                checked={isPublic}
+                onChange={(e) => setIsPublic(e.target.checked)}
+                className="h-4 w-4 accent-brand-800"
+              />
+              <div>
+                <p className="text-sm font-semibold text-red-950">Publikus kupon (megjelenik a fiókban)</p>
+                <p className="text-xs text-red-950/50">
+                  Ha nincs bepipálva, a kupon rejtett marad: checkoutnál beírható a kód, de nem listázzuk a felhasználóknak.
+                </p>
+              </div>
+            </label>
+
             <div className="space-y-3 rounded-xl border border-brand-100 bg-brand-50/30 p-4">
               <label className="flex cursor-pointer items-center gap-3">
                 <input
@@ -350,13 +368,14 @@ export default function AdminCouponsPage() {
                 <th className="p-4 text-left font-bold uppercase tracking-wider text-xs text-brand-900">Hatókör</th>
                 <th className="p-4 text-center font-bold uppercase tracking-wider text-xs text-brand-900">Felhasználás</th>
                 <th className="p-4 text-left font-bold uppercase tracking-wider text-xs text-brand-900">Érvényesség</th>
+                <th className="p-4 text-left font-bold uppercase tracking-wider text-xs text-brand-900">Láthatóság</th>
                 <th className="p-4 text-center font-bold uppercase tracking-wider text-xs text-brand-900">Státusz</th>
                 <th className="p-4 text-right font-bold uppercase tracking-wider text-xs text-brand-900">Műveletek</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-50">
               {coupons.length === 0 ? (
-                <tr><td colSpan={7} className="p-8 text-center text-sm text-red-950/50">Még nincs kupon.</td></tr>
+                <tr><td colSpan={8} className="p-8 text-center text-sm text-red-950/50">Még nincs kupon.</td></tr>
               ) : (
                 coupons.map((coupon) => {
                   const st = couponStatus(coupon);
@@ -380,6 +399,11 @@ export default function AdminCouponsPage() {
                         {coupon.valid_from ? <p>Tól: {new Date(coupon.valid_from).toLocaleDateString("hu-HU")}</p> : null}
                         {coupon.expires_at ? <p>Ig: {new Date(coupon.expires_at).toLocaleDateString("hu-HU")}</p> : <p className="text-red-950/40">—</p>}
                         {coupon.min_order_amount ? <p className="text-red-950/40">Min: {Number(coupon.min_order_amount).toLocaleString("hu-HU")} Ft</p> : null}
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${coupon.is_public ? "bg-sky-50 border-sky-200 text-sky-700" : "bg-slate-100 border-slate-200 text-slate-600"}`}>
+                          {coupon.is_public ? "Publikus" : "Rejtett"}
+                        </span>
                       </td>
                       <td className="p-4 text-center">
                         <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${st.cls}`}>{st.label}</span>

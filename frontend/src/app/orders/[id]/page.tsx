@@ -5,8 +5,13 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { billingAddressDisplay, billingNameDisplay } from "@/lib/order-billing";
 import { formatOrderPublicId } from "@/lib/order-display-id";
+import {
+  ORDER_CONFIRMATION_SUBTITLE,
+  ORDER_CONFIRMATION_TITLE,
+} from "@/lib/order-confirmation-copy";
 import { supabase } from "@/lib/supabase";
 import SiteLogo from "@/components/SiteLogo";
+import OrderTotalsBreakdown from "@/components/OrderTotalsBreakdown";
 import type { Database } from "@/types/supabase";
 
 type Order = Database["public"]["Tables"]["orders"]["Row"];
@@ -135,11 +140,11 @@ export default function OrderDetailsPage() {
                   </svg>
                 </div>
                 <div>
-                  <p className="font-bold text-emerald-900">Rendelés sikeresen leadva!</p>
+                  <p className="font-bold text-emerald-900">{ORDER_CONFIRMATION_TITLE}</p>
                   <p className="mt-0.5 text-sm text-emerald-700">
                     {paymentParam === "transfer"
                       ? "Kérjük utald át a végösszeget a megadott bankszámlára. A rendelési számot tüntesd fel közleménynek."
-                      : "Köszönjük a rendelésed! Hamarosan felvesszük veled a kapcsolatot."}
+                      : ORDER_CONFIRMATION_SUBTITLE}
                   </p>
                 </div>
               </div>
@@ -155,7 +160,7 @@ export default function OrderDetailsPage() {
                       <p className="text-xs font-bold uppercase tracking-widest text-brand-700">Rendelés</p>
                       <h1 className="mt-1 text-2xl font-bold text-slate-900">Rendelés részletei</h1>
                       <p className="mt-1 font-mono text-xs text-slate-400" title={order.id}>
-                        {formatOrderPublicId(order.id)}
+                        {formatOrderPublicId(order)}
                       </p>
                     </div>
                     {st ? (
@@ -212,12 +217,7 @@ export default function OrderDetailsPage() {
                         </div>
                       ))}
 
-                      <div className="flex items-center justify-between border-t border-brand-100 pt-3">
-                        <p className="text-sm font-semibold text-red-950/60">Végösszeg</p>
-                        <p className="text-base font-bold text-brand-900">
-                          {Number(order.total).toLocaleString("hu-HU")} {order.currency}
-                        </p>
-                      </div>
+                      <OrderTotalsBreakdown order={order} />
                     </div>
                   )}
                 </div>
@@ -272,7 +272,7 @@ export default function OrderDetailsPage() {
                     <p className="mb-2 font-bold text-slate-900">Banki átutalás adatok</p>
                     <p className="text-red-950/70">Kedvezményezett: <span className="font-semibold text-slate-900">Sunmed Kft.</span></p>
                     <p className="mt-1 font-mono text-xs text-red-950/70">Számlaszám: <span className="font-semibold">10918001-00000124-71950001</span></p>
-                    <p className="mt-1 text-red-950/70">Közlemény: <span className="font-semibold text-slate-900">{formatOrderPublicId(order.id)}</span></p>
+                    <p className="mt-1 text-red-950/70">Közlemény: <span className="font-semibold text-slate-900">{formatOrderPublicId(order)}</span></p>
                   </div>
                 ) : null}
 

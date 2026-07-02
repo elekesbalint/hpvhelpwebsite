@@ -168,10 +168,10 @@ export default function AdminOrdersPage() {
     setActionSuccess(null);
     const result = await generateLabelForOrder(order);
     if (!result.ok) {
-      setActionError(`${formatOrderPublicId(order.id)}: ${result.message}`);
+      setActionError(`${formatOrderPublicId(order)}: ${result.message}`);
       return;
     }
-    setActionSuccess(`Címirat elkészült: ${formatOrderPublicId(order.id)}`);
+    setActionSuccess(`Címirat elkészült: ${formatOrderPublicId(order)}`);
     await loadData();
   }
 
@@ -195,7 +195,7 @@ export default function AdminOrdersPage() {
     for (const order of eligible) {
       const result = await generateLabelForOrder(order);
       if (result.ok) okCount += 1;
-      else failures.push(`${formatOrderPublicId(order.id)}: ${result.message}`);
+      else failures.push(`${formatOrderPublicId(order)}: ${result.message}`);
       await new Promise((r) => setTimeout(r, 300));
     }
 
@@ -305,7 +305,7 @@ export default function AdminOrdersPage() {
     for (const order of selectedOrders) {
       const result = await applyOrderStatus(order, bulkStatus);
       if (result.ok) okCount += 1;
-      else failures.push(`${formatOrderPublicId(order.id)}: ${result.message ?? "ismeretlen hiba"}`);
+      else failures.push(`${formatOrderPublicId(order)}: ${result.message ?? "ismeretlen hiba"}`);
     }
 
     if (failures.length > 0) {
@@ -364,8 +364,8 @@ export default function AdminOrdersPage() {
             /api/integrations/naturasoft/orders?token=…
           </p>
           <p className="text-[11px] text-amber-800">
-            Újra-import (már exportált rendelések is, a NaturaSoft gyakran nem küldi az URL paramétereket):
-            {" "}
+            NaturaSoft 4. lépés: szekció <strong>tetelek</strong> (ne tetelek/tetel), azonosítás{" "}
+            <strong>Cikkszám alapján</strong>. Újra-import:{" "}
             <span className="font-mono">/api/integrations/naturasoft/reexport?token=…</span>
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
@@ -539,10 +539,10 @@ export default function AdminOrdersPage() {
                             else setSelectedOrderIds((prev) => prev.filter((id) => id !== order.id));
                           }}
                           className="h-4 w-4 accent-brand-800"
-                          aria-label={`Rendelés kijelölése: ${formatOrderPublicId(order.id)}`}
+                          aria-label={`Rendelés kijelölése: ${formatOrderPublicId(order)}`}
                         />
                       </td>
-                      <td className="p-4 font-mono text-xs text-red-950/60" title={order.id}>{formatOrderPublicId(order.id)}</td>
+                      <td className="p-4 font-mono text-xs text-red-950/60" title={order.id}>{formatOrderPublicId(order)}</td>
                       <td className="p-4">
                         <p className="font-semibold text-slate-900">{order.shipping_name ?? "—"}</p>
                         <p className="text-xs text-red-950/50">{getShippingEmail(order)}</p>

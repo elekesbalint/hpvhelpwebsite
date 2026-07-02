@@ -3,16 +3,19 @@ import Footer from "@/components/Footer";
 import PublicSiteHeader from "@/components/PublicSiteHeader";
 import {
   COMPANY_CONTACT,
+  INTRO_VIDEO_LABEL,
   INTRO_VIDEO_URL,
   OFFICE_MAPS_EMBED_URL,
   OFFICE_MAPS_OPEN_URL,
 } from "@/lib/company-contact";
 import ShippingFeesTable from "@/components/ShippingFeesTable";
+import { buildPageMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Ügyfélszolgálat – HPVhelp",
-  description: "Sunmed Kft. ügyfélszolgálat – elérhetőség, helyszín, nyitvatartás.",
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: "Ügyfélszolgálat",
+  description: "Sunmed Kft. ügyfélszolgálat – elérhetőség, helyszín, nyitvatartás és szállítási információk.",
+  path: "/ugyfelszolgalat",
+});
 
 export default function UgyfelszolgalatPage() {
   return (
@@ -142,7 +145,7 @@ export default function UgyfelszolgalatPage() {
               <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m15 10 4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
-              Bemutatkozó videó
+              {INTRO_VIDEO_LABEL}
             </a>
           </div>
         </div>

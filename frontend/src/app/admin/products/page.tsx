@@ -877,7 +877,7 @@ export default function AdminProductsPage() {
                       type="text"
                       value={modal === "create" ? productSku : editProductSku}
                       onChange={(e) => modal === "create" ? setProductSku(e.target.value) : setEditProductSku(e.target.value)}
-                      placeholder="pl. ZNS001"
+                      placeholder="pl. SAM001"
                       className={inputCls}
                     />
                   </div>

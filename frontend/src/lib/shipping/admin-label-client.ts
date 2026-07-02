@@ -1,5 +1,5 @@
 import { formatOrderPublicId } from "@/lib/order-display-id";
-import { carrierForOrder } from "@/lib/shipping/carrier";
+import { carrierForOrder, effectiveShippingMethod } from "@/lib/shipping/carrier";
 
 type OrderForLabel = {
   id: string;
@@ -13,7 +13,8 @@ type OrderForLabel = {
 export function orderCanCreateShippingLabel(order: OrderForLabel): boolean {
   if (!carrierForOrder(order)) return false;
   if (!order.shipping_name?.trim()) return false;
-  if (order.shipping_method === "csomagpont") return Boolean(order.pickup_point_id);
+  const method = effectiveShippingMethod(order) ?? order.shipping_method;
+  if (method === "csomagpont") return Boolean(order.pickup_point_id);
   return Boolean(order.shipping_address?.trim());
 }
 

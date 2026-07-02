@@ -26,3 +26,8 @@ export const OFFICE_MAPS_OPEN_URL = `https://www.google.com/maps/search/?api=1&q
 
 /** Közös bemutatkozó videó (YouTube) */
 export const INTRO_VIDEO_URL = "https://www.youtube.com/watch?v=YqcPJuCduxA";
+export const INTRO_VIDEO_LABEL = "CÉGBEMUTATKOZÓ VIDEÓ";
+
+/** HPV Centrum – segítő kérdőív (milyen tesztet rendeljek?) */
+export const HPV_RISK_QUESTIONNAIRE_URL = "https://hpvcentrum.hu/hpv-riziko-kerdoiv-2/";
+export const HPV_RISK_QUESTIONNAIRE_LABEL = "Milyen tesztet rendeljek? SEGÍTŐ KÉRDŐÍV";

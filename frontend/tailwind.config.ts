@@ -8,6 +8,16 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      spacing: {
+        "safe-top": "env(safe-area-inset-top, 0px)",
+        "safe-bottom": "env(safe-area-inset-bottom, 0px)",
+        "safe-left": "env(safe-area-inset-left, 0px)",
+        "safe-right": "env(safe-area-inset-right, 0px)",
+      },
+      padding: {
+        safe: "env(safe-area-inset-bottom, 0px)",
+        "safe-x": "max(1rem, env(safe-area-inset-left, 0px)) max(1rem, env(safe-area-inset-right, 0px))",
+      },
       colors: {
         brand: {
           50:  "#fef2f2",

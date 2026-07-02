@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   const result = await sendCourierHandoffEmail({
     order,
     itemsTextLines: itemsText,
-    publicOrderLabel: formatOrderPublicId(order.id),
+    publicOrderLabel: formatOrderPublicId(order),
     toEmail,
     toName,
   });

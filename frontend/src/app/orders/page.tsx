@@ -113,7 +113,7 @@ export default function OrdersPage() {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className="font-mono text-xs text-slate-400" title={order.id}>{formatOrderPublicId(order.id)}</p>
+                      <p className="font-mono text-xs text-slate-400" title={order.id}>{formatOrderPublicId(order)}</p>
                       <p className="mt-0.5 text-sm font-semibold text-slate-900">
                         {new Date(order.created_at).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })}
                       </p>

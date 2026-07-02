@@ -19,6 +19,9 @@ type Category = Database["public"]["Tables"]["categories"]["Row"];
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Mobil fejlécben: kereső a logó alatti sorban, keret nélkül */
+  embedded?: boolean;
+  className?: string;
 };
 
 export function HeaderSearchToggleButton({
@@ -46,7 +49,7 @@ export function HeaderSearchToggleButton({
   );
 }
 
-export default function HeaderProductSearch({ open, onOpenChange }: Props) {
+export default function HeaderProductSearch({ open, onOpenChange, embedded = false, className = "" }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const urlSearchParams = useSearchParams();
@@ -139,11 +142,11 @@ export default function HeaderProductSearch({ open, onOpenChange }: Props) {
 
   return (
     <div
-      className="border-t border-brand-100 bg-white shadow-md animate-fade-up"
+      className={`${embedded ? "rounded-2xl border border-brand-200 bg-white shadow-sm" : "border-t border-brand-100 bg-white shadow-md animate-fade-up"} ${className}`.trim()}
       role="search"
       aria-label="Termék keresés"
     >
-      <div className="mx-auto w-full min-w-0 max-w-[1480px] px-3 sm:px-5 md:px-6">
+      <div className={`mx-auto w-full min-w-0 max-w-[1480px] ${embedded ? "px-0" : "px-3 sm:px-5 md:px-6"}`}>
         <form
           className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-3"
           onSubmit={(e) => {

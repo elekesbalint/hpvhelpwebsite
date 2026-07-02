@@ -4,17 +4,36 @@ export type SimplePayConfig = {
   merchant: string;
   secretKey: string;
   apiBase: string;
+  mode: "sandbox" | "production";
 };
 
+export function getSimplePayMode(): "sandbox" | "production" {
+  const raw = process.env.SIMPLEPAY_MODE?.trim().toLowerCase();
+  return raw === "production" || raw === "live" ? "production" : "sandbox";
+}
+
 export function getSimplePayConfig(): SimplePayConfig {
+  const mode = getSimplePayMode();
+
+  if (mode === "production") {
+    const merchant = process.env.SIMPLEPAY_MERCHANT?.trim() ?? "";
+    const secretKey = process.env.SIMPLEPAY_SECRET_KEY?.trim() ?? "";
+    const apiBase = (process.env.SIMPLEPAY_API ?? "https://secure.simplepay.hu/payment/v2").replace(/\/+$/, "");
+
+    if (!merchant || !secretKey) {
+      throw new Error("SimplePay éles env hiányzik: SIMPLEPAY_MERCHANT és SIMPLEPAY_SECRET_KEY.");
+    }
+    return { merchant, secretKey, apiBase, mode };
+  }
+
   const merchant = process.env.SIMPLEPAY_SANDBOX_MERCHANT?.trim() ?? "";
   const secretKey = process.env.SIMPLEPAY_SANDBOX_SECRET_KEY?.trim() ?? "";
   const apiBase = (process.env.SIMPLEPAY_SANDBOX_API ?? "https://sandbox.simplepay.hu/payment/v2").replace(/\/+$/, "");
 
-  if (!merchant || !secretKey || !apiBase) {
-    throw new Error("SimplePay env vars are missing.");
+  if (!merchant || !secretKey) {
+    throw new Error("SimplePay sandbox env hiányzik: SIMPLEPAY_SANDBOX_MERCHANT és SIMPLEPAY_SANDBOX_SECRET_KEY.");
   }
-  return { merchant, secretKey, apiBase };
+  return { merchant, secretKey, apiBase, mode };
 }
 
 /**

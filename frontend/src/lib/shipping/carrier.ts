@@ -8,14 +8,35 @@ export function carrierForShippingMethod(method: string | null | undefined): Shi
   return null;
 }
 
+export function effectiveShippingMethod(order: {
+  shipping_method?: string | null;
+  pickup_point_id?: string | null;
+}): ShippingMethodId | null {
+  if (order.pickup_point_id?.trim() && order.shipping_method !== "pickup") {
+    return "csomagpont";
+  }
+  const method = order.shipping_method;
+  if (
+    method === "posta" ||
+    method === "gls" ||
+    method === "csomagpont" ||
+    method === "pickup" ||
+    method === "abroad"
+  ) {
+    return method;
+  }
+  return null;
+}
+
 /** Rendelés alapján futár (csomagpont esetén a kiválasztott szolgáltató) */
 export function carrierForOrder(order: {
   shipping_method?: string | null;
   pickup_point_provider?: string | null;
+  pickup_point_id?: string | null;
 }): ShippingCarrier | null {
   const pickup = order.pickup_point_provider;
   if (pickup === "gls" || pickup === "mpl" || pickup === "foxpost") return pickup;
-  return carrierForShippingMethod(order.shipping_method);
+  return carrierForShippingMethod(effectiveShippingMethod(order));
 }
 
 export function shippingMethodLabel(method: string | null | undefined): string {
